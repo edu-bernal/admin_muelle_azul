@@ -120,11 +120,18 @@ Tablas/             # Excel operativos reales (fuente de la migración de datos)
 | [03 — Modelo de Datos](docs/03-MODELO-DE-DATOS.md) | Entidades, relaciones y diccionario de datos |
 | [04 — Roadmap](docs/04-ROADMAP-IMPLEMENTACION.md) | Sprints, backlog priorizado y criterios de aceptación |
 | [05 — Migración de Datos](docs/05-MIGRACION-DATOS.md) | Análisis de los Excel reales y plan de carga |
+| [06 — Despliegue](docs/06-DESPLIEGUE-VERCEL-SUPABASE.md) | Puesta en producción en Vercel + Supabase |
 
 ## Despliegue
 
-- **App real (funcional):** requiere un servidor Node + PostgreSQL. Recomendado **Vercel** (app) + **Neon/Supabase** (base de datos). Configura `DATABASE_URL` y `AUTH_SECRET`, ejecuta `prisma migrate deploy` y `db:seed`. *No se puede desplegar en GitHub Pages* porque Pages solo sirve archivos estáticos (sin servidor ni base de datos).
-- **Demo visual:** el contenido de `web-demo/` se publica automáticamente en **GitHub Pages** mediante el workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+- **App real (funcional) → Vercel + Supabase:** guía paso a paso en
+  **[docs/06 — Despliegue](docs/06-DESPLIEGUE-VERCEL-SUPABASE.md)**. El repo ya está
+  preparado: el script `vercel-build` aplica las migraciones (`prisma migrate deploy`)
+  en cada deploy, y Prisma usa el pooler de Supabase (`url`) + la conexión directa
+  (`directUrl`). Solo necesitas importar el repo en Vercel y pegar 4 variables de
+  entorno. *No se puede desplegar en GitHub Pages* (Pages solo sirve estáticos).
+- **Demo visual:** el contenido de `web-demo/` se publica automáticamente en
+  **GitHub Pages** mediante el workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
 ## Pendientes / mejoras
 

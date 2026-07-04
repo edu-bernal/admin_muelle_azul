@@ -1,0 +1,678 @@
+// Esquema de datos — Sistema de Administración Condominio Muelle Azul
+// Basado en docs/03-MODELO-DE-DATOS.md. Montos en Decimal(12,2) (nunca float).
+// Convención: entidades con historia usan borrado lógico (activo/estado), nunca DELETE físico.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────
+// ENUMS
+// ────────────────────────────────────────────────────────────
+
+enum EstadoUsuario {
+  INVITADO
+  ACTIVO
+  SUSPENDIDO
+}
+
+enum TipoDocumento {
+  DNI
+  CE
+  RUC
+  PASAPORTE
+}
+
+enum CanalEnvio {
+  CORREO
+  WHATSAPP
+}
+
+enum TipoUnidad {
+  CASA
+  TERRENO
+}
+
+enum BaseCalculoCuota {
+  ALICUOTA
+  FIJO
+  M2
+}
+
+enum EstadoOcupacion {
+  PROPIETARIO
+  ALQUILADA
+  DESOCUPADA
+  EN_VENTA
+}
+
+enum EstadoEmision {
+  BORRADOR
+  CONFIRMADA
+  ANULADA
+}
+
+enum EstadoCargo {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+  ANULADO
+}
+
+enum EstadoPago {
+  POR_VALIDAR
+  CONFIRMADO
+  RECHAZADO
+  ANULADO
+}
+
+enum MedioPago {
+  TRANSFERENCIA
+  YAPE
+  PLIN
+  EFECTIVO
+  DEPOSITO
+  CHEQUE
+  PASARELA
+  MIGRACION
+}
+
+enum DeclaradoPor {
+  ADMIN
+  PROPIETARIO
+}
+
+enum SerieRecibo {
+  CAJA
+  VARIOS
+}
+
+enum EstadoIngresoVario {
+  REGISTRADO
+  ANULADO
+}
+
+enum TipoServicioUnidad {
+  VIGILANCIA
+  OTRO
+}
+
+enum EstadoServicioUnidad {
+  ACTIVO
+  SUSPENDIDO
+  TERMINADO
+}
+
+enum Periodicidad {
+  MENSUAL
+  BIMESTRAL
+  TRIMESTRAL
+  ANUAL
+  VARIABLE
+}
+
+enum EstadoServicioTercero {
+  VIGENTE
+  SUSPENDIDO
+  TERMINADO
+}
+
+enum TipoComprobante {
+  FACTURA
+  RHE
+  BOLETA
+  RECIBO
+}
+
+enum EstadoFactura {
+  PENDIENTE
+  PAGADA_PARCIAL
+  PAGADA
+  ANULADA
+}
+
+enum TipoTrabajador {
+  ADMINISTRATIVO
+  MANTENIMIENTO
+  VIGILANCIA
+}
+
+enum EstadoPlanilla {
+  ABIERTA
+  CERRADA
+  PAGADA
+}
+
+enum EstadoPagoDetalle {
+  PENDIENTE
+  PAGADO
+}
+
+enum EstadoAdelanto {
+  PENDIENTE
+  DESCONTADO
+  ANULADO
+}
+
+enum TipoOrigenEgreso {
+  FACTURA_PROVEEDOR
+  OBLIGACION_SERVICIO
+  PLANILLA_DETALLE
+  OTRO
+}
+
+enum EstadoEgreso {
+  REGISTRADO
+  ANULADO
+}
+
+enum CanalNotificacion {
+  EMAIL
+  PANEL
+}
+
+enum EstadoNotificacion {
+  PENDIENTE
+  ENVIADA
+  FALLIDA
+}
+
+// ────────────────────────────────────────────────────────────
+// RBAC + USUARIOS
+// ────────────────────────────────────────────────────────────
+
+model Rol {
+  id        String        @id @default(uuid())
+  codigo    String        @unique
+  nombre    String
+  permisos  RolPermiso[]
+  usuarios  Usuario[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model Permiso {
+  id          String       @id @default(uuid())
+  codigo      String       @unique // formato: modulo.recurso.accion
+  descripcion String?
+  roles       RolPermiso[]
+}
+
+model RolPermiso {
+  rolId     String
+  permisoId String
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+}
+
+model Usuario {
+  id                String        @id @default(uuid())
+  email             String        @unique
+  passwordHash      String? // null hasta activación
+  nombreCompleto    String
+  rolId             String
+  rol               Rol           @relation(fields: [rolId], references: [id])
+  propietarioId     String?
+  propietario       Propietario?  @relation(fields: [propietarioId], references: [id])
+  estado            EstadoUsuario @default(INVITADO)
+  twoFaSecret       String?
+  activationToken   String?       @unique
+  activationExpires DateTime?
+  resetToken        String?       @unique
+  resetExpires      DateTime?
+  ultimoAcceso      DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// ────────────────────────────────────────────────────────────
+// CONDOMINIO + PADRÓN
+// ────────────────────────────────────────────────────────────
+
+model Condominio {
+  id        String  @id @default(uuid())
+  nombre    String
+  ruc       String?
+  direccion String?
+  distrito  String?
+  moneda    String  @default("PEN")
+  logoUrl   String?
+}
+
+model Sector {
+  id       String    @id @default(uuid())
+  codigo   String    @unique // MA_C, MA_A, MA_O, MA_N
+  nombre   String
+  activo   Boolean   @default(true)
+  unidades Unidad[]
+  tarifas  TarifaCuota[]
+}
+
+model Propietario {
+  id                 String                  @id @default(uuid())
+  nombre             String
+  tipoDocumento      TipoDocumento?
+  numeroDocumento    String?
+  email              String?
+  emailSecundario    String?
+  telefono           String?
+  telefonoSecundario String?
+  canalEnvio         CanalEnvio              @default(CORREO)
+  direccionHabitual  String?
+  contactoEmergencia Json?
+  activo             Boolean                 @default(true)
+  titularidades      PropiedadTitularidad[]
+  pagos              Pago[]
+  saldoFavor         SaldoFavor?
+  ingresosVarios     IngresoVario[]
+  usuarios           Usuario[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@unique([tipoDocumento, numeroDocumento])
+}
+
+model Unidad {
+  id                String                 @id @default(uuid())
+  codigo            String                 @unique // {sector}-{manzana}_{lote}
+  sectorId          String
+  sector            Sector                 @relation(fields: [sectorId], references: [id])
+  manzana           String
+  lote              String
+  tipo              TipoUnidad             @default(CASA)
+  areaM2            Decimal?               @db.Decimal(8, 2)
+  alicuota          Decimal?               @db.Decimal(7, 4)
+  baseCalculoCuota  BaseCalculoCuota?
+  montoFijoCuota    Decimal?               @db.Decimal(12, 2)
+  unidadPrincipalId String?
+  unidadPrincipal   Unidad?                @relation("UnidadPrincipal", fields: [unidadPrincipalId], references: [id])
+  unidadesVinculadas Unidad[]              @relation("UnidadPrincipal")
+  estadoOcupacion   EstadoOcupacion        @default(PROPIETARIO)
+  activo            Boolean                @default(true)
+  titularidades     PropiedadTitularidad[]
+  cargos            Cargo[]
+  serviciosUnidad   ServicioUnidad[]
+  ingresosVarios    IngresoVario[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([sectorId])
+}
+
+model PropiedadTitularidad {
+  id                String      @id @default(uuid())
+  propietarioId     String
+  propietario       Propietario @relation(fields: [propietarioId], references: [id])
+  unidadId          String
+  unidad            Unidad      @relation(fields: [unidadId], references: [id])
+  porcentaje        Decimal     @default(100) @db.Decimal(5, 2)
+  esResponsablePago Boolean     @default(false)
+  fechaInicio       DateTime    @default(now())
+  fechaFin          DateTime?
+
+  @@index([unidadId])
+  @@index([propietarioId])
+}
+
+model TarifaCuota {
+  id           String      @id @default(uuid())
+  vigenteDesde DateTime
+  tipoUnidad   TipoUnidad?
+  sectorId     String?
+  sector       Sector?     @relation(fields: [sectorId], references: [id])
+  montoMensual Decimal     @db.Decimal(12, 2)
+
+  @@index([vigenteDesde])
+}
+
+// ────────────────────────────────────────────────────────────
+// FINANZAS — INGRESOS
+// ────────────────────────────────────────────────────────────
+
+model ConceptoCobro {
+  id           String   @id @default(uuid())
+  codigo       String   @unique // MANT, EXTRA, MORA, MULTA, VIGILANCIA, SALDO_INICIAL, OTRO
+  nombre       String
+  esRecurrente Boolean  @default(false)
+  generaMora   Boolean  @default(true)
+  activo       Boolean  @default(true)
+  emisiones    Emision[]
+  cargos       Cargo[]
+}
+
+model Emision {
+  id              String        @id @default(uuid())
+  conceptoCobroId String
+  conceptoCobro   ConceptoCobro @relation(fields: [conceptoCobroId], references: [id])
+  periodo         DateTime // primer día del mes
+  fechaEmision    DateTime      @default(now())
+  fechaVencimiento DateTime
+  estado          EstadoEmision @default(BORRADOR)
+  totalEmitido    Decimal       @default(0) @db.Decimal(14, 2)
+  cantidadCargos  Int           @default(0)
+  creadoPorId     String?
+  cargos          Cargo[]
+  createdAt       DateTime      @default(now())
+
+  @@unique([conceptoCobroId, periodo])
+}
+
+model Cargo {
+  id               String        @id @default(uuid())
+  unidadId         String
+  unidad           Unidad        @relation(fields: [unidadId], references: [id])
+  conceptoCobroId  String
+  conceptoCobro    ConceptoCobro @relation(fields: [conceptoCobroId], references: [id])
+  emisionId        String?
+  emision          Emision?      @relation(fields: [emisionId], references: [id])
+  periodo          DateTime?
+  descripcion      String
+  monto            Decimal       @db.Decimal(12, 2)
+  fechaEmision     DateTime      @default(now())
+  fechaVencimiento DateTime
+  estado           EstadoCargo   @default(PENDIENTE)
+  cargoOrigenId    String?
+  cargoOrigen      Cargo?        @relation("CargoOrigen", fields: [cargoOrigenId], references: [id])
+  cargosDerivados  Cargo[]       @relation("CargoOrigen")
+  anuladoPorId     String?
+  anuladoMotivo    String?
+  anuladoAt        DateTime?
+  aplicaciones     AplicacionPago[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([unidadId, estado, fechaVencimiento])
+}
+
+model Pago {
+  id               String       @id @default(uuid())
+  propietarioId    String
+  propietario      Propietario  @relation(fields: [propietarioId], references: [id])
+  fechaPago        DateTime
+  monto            Decimal      @db.Decimal(12, 2)
+  moneda           String       @default("PEN")
+  tipoCambio       Decimal?     @db.Decimal(8, 4)
+  medio            MedioPago
+  banco            String?
+  numeroOperacion  String?
+  voucherArchivoId String?
+  estado           EstadoPago   @default(POR_VALIDAR)
+  declaradoPor     DeclaradoPor @default(ADMIN)
+  validadoPorId    String?
+  validadoAt       DateTime?
+  rechazoMotivo    String?
+  aplicaciones     AplicacionPago[]
+  recibo           ReciboCaja?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([propietarioId, estado, fechaPago])
+}
+
+model AplicacionPago {
+  id            String   @id @default(uuid())
+  pagoId        String
+  pago          Pago     @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  cargoId       String
+  cargo         Cargo    @relation(fields: [cargoId], references: [id])
+  montoAplicado Decimal  @db.Decimal(12, 2)
+  aplicadoAt    DateTime @default(now())
+  aplicadoPorId String?
+
+  @@index([cargoId])
+  @@index([pagoId])
+}
+
+model ReciboCaja {
+  id              String      @id @default(uuid())
+  numero          Int         @unique
+  serie           SerieRecibo @default(CAJA)
+  pagoId          String?     @unique
+  pago            Pago?       @relation(fields: [pagoId], references: [id])
+  ingresoVarioId  String?     @unique
+  ingresoVario    IngresoVario? @relation(fields: [ingresoVarioId], references: [id])
+  detallePeriodos String?
+  emitidoAt       DateTime    @default(now())
+  emitidoPorId    String?
+  reimpresiones   Int         @default(0)
+  pdfArchivoId    String?
+}
+
+model SaldoFavor {
+  id              String      @id @default(uuid())
+  propietarioId   String      @unique
+  propietario     Propietario @relation(fields: [propietarioId], references: [id])
+  montoDisponible Decimal     @default(0) @db.Decimal(12, 2)
+  movimientos     SaldoFavorMovimiento[]
+  updatedAt       DateTime    @updatedAt
+}
+
+model SaldoFavorMovimiento {
+  id           String     @id @default(uuid())
+  saldoFavorId String
+  saldoFavor   SaldoFavor @relation(fields: [saldoFavorId], references: [id], onDelete: Cascade)
+  pagoId       String?
+  cargoId      String?
+  monto        Decimal    @db.Decimal(12, 2)
+  signo        Int // +1 abono, -1 consumo
+  createdAt    DateTime   @default(now())
+}
+
+model IngresoVario {
+  id              String             @id @default(uuid())
+  fecha           DateTime
+  concepto        String
+  descripcion     String?
+  unidadId        String?
+  unidad          Unidad?            @relation(fields: [unidadId], references: [id])
+  propietarioId   String?
+  propietario     Propietario?       @relation(fields: [propietarioId], references: [id])
+  monto           Decimal            @db.Decimal(12, 2)
+  medio           MedioPago          @default(EFECTIVO)
+  numeroOperacion String?
+  estado          EstadoIngresoVario @default(REGISTRADO)
+  recibo          ReciboCaja?
+  createdAt       DateTime           @default(now())
+}
+
+model ServicioUnidad {
+  id            String               @id @default(uuid())
+  unidadId      String
+  unidad        Unidad               @relation(fields: [unidadId], references: [id])
+  tipo          TipoServicioUnidad   @default(VIGILANCIA)
+  tarifaMensual Decimal              @db.Decimal(12, 2)
+  fechaInicio   DateTime             @default(now())
+  fechaFin      DateTime?
+  estado        EstadoServicioUnidad @default(ACTIVO)
+
+  @@index([unidadId])
+}
+
+// ────────────────────────────────────────────────────────────
+// FINANZAS — EGRESOS
+// ────────────────────────────────────────────────────────────
+
+model Proveedor {
+  id                String            @id @default(uuid())
+  razonSocial       String
+  ruc               String?           @unique
+  rubro             String?
+  contactoNombre    String?
+  contactoEmail     String?
+  contactoTelefono  String?
+  cuentasBancarias  Json?
+  activo            Boolean           @default(true)
+  servicios         ServicioTercero[]
+  facturas          FacturaProveedor[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model PartidaPresupuesto {
+  id        String            @id @default(uuid())
+  codigo    String            @unique
+  nombre    String
+  activo    Boolean           @default(true)
+  servicios ServicioTercero[]
+  egresos   Egreso[]
+}
+
+model ServicioTercero {
+  id              String                @id @default(uuid())
+  proveedorId     String
+  proveedor       Proveedor             @relation(fields: [proveedorId], references: [id])
+  nombre          String
+  partidaId       String?
+  partida         PartidaPresupuesto?   @relation(fields: [partidaId], references: [id])
+  periodicidad    Periodicidad          @default(MENSUAL)
+  montoReferencial Decimal?             @db.Decimal(12, 2)
+  diaPago         Int?
+  fechaInicio     DateTime?
+  fechaFinContrato DateTime?
+  estado          EstadoServicioTercero @default(VIGENTE)
+  createdAt       DateTime              @default(now())
+}
+
+model FacturaProveedor {
+  id              String          @id @default(uuid())
+  proveedorId     String
+  proveedor       Proveedor       @relation(fields: [proveedorId], references: [id])
+  tipoComprobante TipoComprobante @default(FACTURA)
+  serieNumero     String?
+  fechaEmision    DateTime
+  monto           Decimal         @db.Decimal(12, 2)
+  detalle         String?
+  estado          EstadoFactura   @default(PENDIENTE)
+  createdAt       DateTime        @default(now())
+}
+
+model Trabajador {
+  id            String           @id @default(uuid())
+  nombre        String
+  documento     String?
+  puesto        String
+  tipo          TipoTrabajador   @default(MANTENIMIENTO)
+  tipoContrato  String?
+  fechaIngreso  DateTime?
+  fechaCese     DateTime?
+  sueldoBase    Decimal          @db.Decimal(12, 2)
+  cuentaBancaria String?
+  activo        Boolean          @default(true)
+  detalles      PlanillaDetalle[]
+  adelantos     Adelanto[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Planilla {
+  id        String            @id @default(uuid())
+  periodo   DateTime          @unique
+  estado    EstadoPlanilla    @default(ABIERTA)
+  totalNeto Decimal           @default(0) @db.Decimal(14, 2)
+  detalles  PlanillaDetalle[]
+  createdAt DateTime          @default(now())
+}
+
+model PlanillaDetalle {
+  id                  String            @id @default(uuid())
+  planillaId          String
+  planilla            Planilla          @relation(fields: [planillaId], references: [id], onDelete: Cascade)
+  trabajadorId        String
+  trabajador          Trabajador        @relation(fields: [trabajadorId], references: [id])
+  sueldoBase          Decimal           @db.Decimal(12, 2)
+  bonificaciones      Decimal           @default(0) @db.Decimal(12, 2)
+  horasExtra          Decimal           @default(0) @db.Decimal(12, 2)
+  descuentos          Decimal           @default(0) @db.Decimal(12, 2)
+  adelantosDescontados Decimal          @default(0) @db.Decimal(12, 2)
+  netoPagar           Decimal           @db.Decimal(12, 2)
+  estadoPago          EstadoPagoDetalle @default(PENDIENTE)
+}
+
+model Adelanto {
+  id             String         @id @default(uuid())
+  trabajadorId   String
+  trabajador     Trabajador     @relation(fields: [trabajadorId], references: [id])
+  fecha          DateTime       @default(now())
+  monto          Decimal        @db.Decimal(12, 2)
+  motivo         String?
+  saldoPendiente Decimal        @db.Decimal(12, 2)
+  estado         EstadoAdelanto @default(PENDIENTE)
+}
+
+model Egreso {
+  id              String              @id @default(uuid())
+  tipoOrigen      TipoOrigenEgreso    @default(OTRO)
+  origenId        String?
+  partidaId       String?
+  partida         PartidaPresupuesto? @relation(fields: [partidaId], references: [id])
+  descripcion     String?
+  fechaPago       DateTime
+  monto           Decimal             @db.Decimal(12, 2)
+  medio           MedioPago           @default(TRANSFERENCIA)
+  numeroOperacion String?
+  estado          EstadoEgreso        @default(REGISTRADO)
+  createdAt       DateTime            @default(now())
+
+  @@index([fechaPago])
+}
+
+// ────────────────────────────────────────────────────────────
+// TRANSVERSALES
+// ────────────────────────────────────────────────────────────
+
+model Archivo {
+  id            String   @id @default(uuid())
+  storageKey    String   @unique
+  nombreOriginal String
+  mime          String
+  tamanoBytes   Int
+  subidoPorId   String?
+  entidadTipo   String?
+  entidadId     String?
+  createdAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  usuarioId   String?
+  accion      String
+  entidad     String
+  entidadId   String?
+  datosAntes  Json?
+  datosDespues Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entidad, entidadId])
+  @@index([usuarioId])
+}
+
+model Configuracion {
+  id          String  @id @default(uuid())
+  clave       String  @unique
+  valor       Json
+  descripcion String?
+}
+
+model Notificacion {
+  id         String             @id @default(uuid())
+  usuarioId  String
+  tipo       String
+  titulo     String
+  cuerpo     String?
+  canal      CanalNotificacion  @default(PANEL)
+  estado     EstadoNotificacion @default(PENDIENTE)
+  referencia String?
+  enviadaAt  DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([usuarioId, estado])
+}

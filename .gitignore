@@ -1,0 +1,52 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Datos reales con información personal de propietarios (NO publicar — Ley 29733).
+# Permanecen en disco para la migración local; ver docs/05-MIGRACION-DATOS.md.
+/Tablas/
+
+# Proyecto aparte (app de JS vanilla), no forma parte de este sistema.
+/gestion-propiedades/
+
+# Configuración local de herramientas
+/.claude/

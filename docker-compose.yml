@@ -1,0 +1,23 @@
+# PostgreSQL para desarrollo local del sistema Muelle Azul.
+# Uso: docker compose up -d   →   base disponible en localhost:5432
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: muelle_azul_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: muelle
+      POSTGRES_PASSWORD: muelle
+      POSTGRES_DB: muelle_azul
+    ports:
+      - "5432:5432"
+    volumes:
+      - muelle_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muelle -d muelle_azul"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  muelle_pgdata:

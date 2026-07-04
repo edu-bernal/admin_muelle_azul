@@ -113,6 +113,36 @@
           <p class="mb-6 text-sm text-slate-500">Reportes de mantenimiento y su seguimiento</p>
           <div id="incidenciasTabla"></div>
         </section>
+
+        <!-- Accesos -->
+        <section id="accesos" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Control de accesos</h1>
+          <p class="mb-6 text-sm text-slate-500">Registro de garita: visitas, delivery y proveedores</p>
+          <div id="accesosCards" class="mb-6 grid gap-4 sm:grid-cols-3"></div>
+          <div id="accesosTabla"></div>
+        </section>
+
+        <!-- Presupuesto -->
+        <section id="presupuesto" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Presupuesto anual 2026</h1>
+          <p class="mb-6 text-sm text-slate-500">Ejecución presupuestal por partida</p>
+          <div id="presupuestoCards" class="mb-6 grid gap-4 sm:grid-cols-3"></div>
+          <div id="presupuestoTabla"></div>
+        </section>
+
+        <!-- Votaciones -->
+        <section id="votaciones" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Votaciones</h1>
+          <p class="mb-6 text-sm text-slate-500">Consultas a los propietarios (asamblea)</p>
+          <div id="votacionesLista" class="space-y-4"></div>
+        </section>
+
+        <!-- Documentos -->
+        <section id="documentos" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Documentos</h1>
+          <p class="mb-6 text-sm text-slate-500">Reglamento, actas y estados financieros</p>
+          <div id="documentosLista"></div>
+        </section>
       </main>
     </div>
 
@@ -129,6 +159,10 @@
         ["comunicados", "📣", "Comunicados"],
         ["reservas", "🏖️", "Reservas"],
         ["incidencias", "🛠️", "Incidencias"],
+        ["accesos", "🚪", "Accesos"],
+        ["presupuesto", "📈", "Presupuesto"],
+        ["votaciones", "🗳️", "Votaciones"],
+        ["documentos", "📁", "Documentos"],
       ];
 
       const card = (label, value, tone = "", hint = "") => `
@@ -205,6 +239,32 @@
         ["Zona de Parrillas", "Aforo 20", money(50)],
         ["Salón Multiusos", "Aforo 60", money(150)],
         ["Cancha Deportiva", "Aforo 15", "Sin costo"],
+      ];
+
+      const accesos = [
+        ["Roxana R. Demo", "VISITA", "MA_C-A_1", "—", "14:20", "—"],
+        ["Delivery Rappi", "DELIVERY", "MA_C-B_6", "—", "13:05", "13:18"],
+        ["Constructora Sur", "PROVEEDOR", "MA_A-C1_6", "XYZ-987", "09:40", "—"],
+      ];
+
+      const presupuesto = [
+        ["Mantenimiento integral", 130000, 20870, 84],
+        ["Planilla de personal", 60000, 0, 0],
+        ["Vigilancia", 36000, 3000, 8],
+        ["Salvavidas (temporada)", 12000, 960, 8],
+        ["Administración", 24000, 0, 0],
+        ["Eléctrico / luminarias", 8000, 2100, 26],
+        ["Fondo de reserva", 20000, 0, 0],
+      ];
+
+      const votaciones = [
+        ["¿Aprobar la instalación de paneles solares en áreas comunes?", "ABIERTA", [["Sí", 68], ["No", 22], ["Abstención", 10]]],
+      ];
+
+      const documentos = [
+        ["Reglamento", "Reglamento Interno del Condominio"],
+        ["Actas", "Acta de Asamblea General 2026"],
+        ["Finanzas", "Estado Financiero 2025"],
       ];
 
       // ---- Render ----
@@ -314,6 +374,51 @@
             <td class="px-4 py-3 font-medium">${i[0]}</td><td class="px-4 py-3">${i[1]}</td>
             <td class="px-4 py-3 text-slate-500">${i[2]}</td><td class="px-4 py-3 text-slate-500">${i[3]}</td>
             <td class="px-4 py-3">${badge(i[4])}</td><td class="px-4 py-3">${badge(i[5])}</td></tr>`).join(""));
+
+        // Accesos
+        document.getElementById("accesosCards").innerHTML =
+          card("Actualmente dentro", "2") + card("Registros de hoy", String(accesos.length));
+        document.getElementById("accesosTabla").innerHTML = table(
+          `<th class="px-4 py-3">Nombre</th><th class="px-4 py-3">Tipo</th><th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Placa</th><th class="px-4 py-3">Ingreso</th><th class="px-4 py-3">Salida</th>`,
+          accesos.map((a) => `<tr>
+            <td class="px-4 py-3 font-medium">${a[0]}</td><td class="px-4 py-3">${badge(a[1])}</td>
+            <td class="px-4 py-3 text-slate-500">${a[2]}</td><td class="px-4 py-3 text-slate-500">${a[3]}</td>
+            <td class="px-4 py-3 text-slate-500">${a[4]}</td><td class="px-4 py-3 text-slate-500">${a[5]}</td></tr>`).join(""));
+
+        // Presupuesto
+        const totPres = presupuesto.reduce((s, p) => s + p[1], 0);
+        const totEjec = presupuesto.reduce((s, p) => s + p[2], 0);
+        document.getElementById("presupuestoCards").innerHTML =
+          card("Presupuestado", money(totPres)) +
+          card("Ejecutado", money(totEjec), "text-emerald-600") +
+          card("Saldo", money(totPres - totEjec));
+        document.getElementById("presupuestoTabla").innerHTML = table(
+          `<th class="px-4 py-3">Partida</th><th class="px-4 py-3 text-right">Presupuestado</th><th class="px-4 py-3 text-right">Ejecutado</th><th class="px-4 py-3 text-right">Saldo</th><th class="px-4 py-3">Avance</th>`,
+          presupuesto.map((p) => `<tr>
+            <td class="px-4 py-3 font-medium">${p[0]}</td>
+            <td class="px-4 py-3 text-right">${money(p[1])}</td>
+            <td class="px-4 py-3 text-right">${money(p[2])}</td>
+            <td class="px-4 py-3 text-right">${money(p[1] - p[2])}</td>
+            <td class="px-4 py-3"><div class="flex items-center gap-2"><div class="h-2 w-24 overflow-hidden rounded-full bg-slate-100"><div class="h-full bg-brand" style="width:${Math.min(p[3], 100)}%"></div></div><span class="text-xs text-slate-500">${p[3]}%</span></div></td></tr>`).join(""));
+
+        // Votaciones
+        document.getElementById("votacionesLista").innerHTML = votaciones.map((v) => `
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-2"><h3 class="font-semibold">${v[0]}</h3>${badge(v[1])}</div>
+            <div class="mt-3 space-y-2">
+              ${v[2].map((o) => `<div>
+                <div class="flex justify-between text-sm"><span>${o[0]}</span><span class="text-slate-500">${o[1]}%</span></div>
+                <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full bg-brand" style="width:${o[1]}%"></div></div>
+              </div>`).join("")}
+            </div>
+          </div>`).join("");
+
+        // Documentos
+        document.getElementById("documentosLista").innerHTML = table(
+          `<th class="px-4 py-3">Carpeta</th><th class="px-4 py-3">Documento</th><th class="px-4 py-3">Enlace</th>`,
+          documentos.map((d) => `<tr>
+            <td class="px-4 py-3 text-slate-500">${d[0]}</td><td class="px-4 py-3 font-medium">${d[1]}</td>
+            <td class="px-4 py-3"><span class="text-brand underline">Abrir</span></td></tr>`).join(""));
       }
 
       function buildNav() {

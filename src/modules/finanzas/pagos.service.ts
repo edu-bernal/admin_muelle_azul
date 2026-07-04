@@ -173,6 +173,50 @@ export async function registrarPagoAdmin(
   });
 }
 
+/**
+ * Pago en línea (pasarela SIMULADA / sandbox). Representa un cobro exitoso de
+ * la pasarela: crea el pago como CONFIRMADO (medio PASARELA), lo aplica por FIFO
+ * y emite el recibo. En producción, esto lo dispararía el webhook de la pasarela
+ * (Culqi / MercadoPago / Niubiz) tras verificar la transacción.
+ */
+export async function pagarEnLinea(
+  input: Omit<RegistrarPagoInput, "medio">,
+  usuarioId?: string | null,
+): Promise<PagoResultado> {
+  return prisma.$transaction(async (tx) => {
+    const pago = await tx.pago.create({
+      data: {
+        propietarioId: input.propietarioId,
+        fechaPago: input.fechaPago,
+        monto: dec(input.monto),
+        medio: "PASARELA",
+        numeroOperacion: input.numeroOperacion ?? null,
+        estado: "CONFIRMADO",
+        declaradoPor: "PROPIETARIO",
+        validadoAt: new Date(),
+      },
+    });
+    const res = await aplicarPagoFIFO(tx, pago, usuarioId);
+    const reciboNumero = await emitirRecibo(tx, pago.id, res.periodos, usuarioId);
+    await audit(
+      {
+        usuarioId,
+        accion: "PAGO_EN_LINEA",
+        entidad: "Pago",
+        entidadId: pago.id,
+        datosDespues: { monto: input.monto, medio: "PASARELA", recibo: reciboNumero },
+      },
+      tx,
+    );
+    return {
+      pagoId: pago.id,
+      reciboNumero,
+      aplicado: res.aplicado.toNumber(),
+      saldoFavor: res.saldoFavor.toNumber(),
+    };
+  });
+}
+
 /** El propietario declara un pago desde su portal: queda POR_VALIDAR. */
 export async function declararPago(
   input: RegistrarPagoInput,

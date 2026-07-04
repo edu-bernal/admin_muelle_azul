@@ -7,6 +7,7 @@ import {
   inputClass,
   labelClass,
   buttonClass,
+  LinkButton,
 } from "@/components/ui";
 import { declararPagoAction } from "./actions";
 
@@ -45,11 +46,16 @@ export default async function PortalPage({
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">
-          Hola, {user.nombre.split(" ")[0]} 👋
-        </h1>
-        <p className="text-sm text-slate-500">Este es tu estado de cuenta.</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Hola, {user.nombre.split(" ")[0]} 👋
+          </h1>
+          <p className="text-sm text-slate-500">Este es tu estado de cuenta.</p>
+        </div>
+        {ec.saldoNeto > 0 && (
+          <LinkButton href="/portal/pagar">💳 Pagar en línea</LinkButton>
+        )}
       </div>
 
       {sp.ok && (

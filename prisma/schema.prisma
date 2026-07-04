@@ -303,6 +303,12 @@ model Unidad {
   reservas          Reserva[]
   incidencias       Incidencia[]
   multas            Multa[]
+  visitas           Visita[]
+  autorizaciones    AutorizacionPermanente[]
+  vehiculos         Vehiculo[]
+  votos             Voto[]
+  medidores         Medidor[]
+  lecturas          LecturaMedidor[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -519,12 +525,13 @@ model Proveedor {
 }
 
 model PartidaPresupuesto {
-  id        String            @id @default(uuid())
-  codigo    String            @unique
-  nombre    String
-  activo    Boolean           @default(true)
-  servicios ServicioTercero[]
-  egresos   Egreso[]
+  id                  String               @id @default(uuid())
+  codigo              String               @unique
+  nombre              String
+  activo              Boolean              @default(true)
+  servicios           ServicioTercero[]
+  egresos             Egreso[]
+  presupuestoPartidas PresupuestoPartida[]
 }
 
 model ServicioTercero {
@@ -838,4 +845,178 @@ model Multa {
   updatedAt    DateTime    @updatedAt
 
   @@index([unidadId])
+}
+
+// ────────────────────────────────────────────────────────────
+// FASE 3 — OPTIMIZACIÓN
+// ────────────────────────────────────────────────────────────
+
+enum TipoVisita {
+  VISITA
+  DELIVERY
+  PROVEEDOR
+  OBRERO
+  INQUILINO
+}
+
+enum EstadoPresupuesto {
+  BORRADOR
+  APROBADO
+}
+
+enum PonderacionVoto {
+  ALICUOTA
+  UNIDAD
+}
+
+enum EstadoVotacion {
+  BORRADOR
+  ABIERTA
+  CERRADA
+}
+
+enum VisibilidadDocumento {
+  PUBLICO_PROPIETARIOS
+  SOLO_ADMIN
+}
+
+// --- Control de acceso / Garita ---
+
+model Visita {
+  id             String     @id @default(uuid())
+  unidadId       String?
+  unidad         Unidad?    @relation(fields: [unidadId], references: [id])
+  nombre         String
+  documento      String?
+  placa          String?
+  tipo           TipoVisita @default(VISITA)
+  preautorizada  Boolean    @default(false)
+  preautorizadaPorId String?
+  ingresoAt      DateTime?
+  salidaAt       DateTime?
+  registradoPorId String?
+  createdAt      DateTime   @default(now())
+
+  @@index([unidadId])
+  @@index([ingresoAt])
+}
+
+model AutorizacionPermanente {
+  id            String    @id @default(uuid())
+  unidadId      String
+  unidad        Unidad    @relation(fields: [unidadId], references: [id])
+  personaNombre String
+  personaDoc    String?
+  tipo          String // FAMILIAR, PERSONAL_DOMESTICO, ...
+  vigenciaDesde DateTime  @default(now())
+  vigenciaHasta DateTime?
+  activo        Boolean   @default(true)
+
+  @@index([unidadId])
+}
+
+model Vehiculo {
+  id       String  @id @default(uuid())
+  unidadId String
+  unidad   Unidad  @relation(fields: [unidadId], references: [id])
+  placa    String  @unique
+  marca    String?
+  modelo   String?
+  color    String?
+}
+
+// --- Presupuesto anual ---
+
+model PresupuestoAnual {
+  id        String               @id @default(uuid())
+  anio      Int                  @unique
+  estado    EstadoPresupuesto    @default(BORRADOR)
+  partidas  PresupuestoPartida[]
+  createdAt DateTime             @default(now())
+}
+
+model PresupuestoPartida {
+  id             String             @id @default(uuid())
+  presupuestoId  String
+  presupuesto    PresupuestoAnual   @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  partidaId      String
+  partida        PartidaPresupuesto @relation(fields: [partidaId], references: [id])
+  montoAnual     Decimal            @db.Decimal(14, 2)
+
+  @@unique([presupuestoId, partidaId])
+}
+
+// --- Votaciones ---
+
+model Votacion {
+  id          String          @id @default(uuid())
+  pregunta    String
+  descripcion String?
+  opciones    Json // ["Sí","No"] o lista de opciones
+  ponderacion PonderacionVoto @default(UNIDAD)
+  estado      EstadoVotacion  @default(BORRADOR)
+  abreAt      DateTime?
+  cierraAt    DateTime?
+  votos       Voto[]
+  creadoPorId String?
+  createdAt   DateTime        @default(now())
+}
+
+model Voto {
+  id         String   @id @default(uuid())
+  votacionId String
+  votacion   Votacion @relation(fields: [votacionId], references: [id], onDelete: Cascade)
+  unidadId   String
+  unidad     Unidad   @relation(fields: [unidadId], references: [id])
+  opcion     String
+  peso       Decimal  @default(1) @db.Decimal(9, 4)
+  emitidoPorId String?
+  emitidoAt  DateTime @default(now())
+
+  @@unique([votacionId, unidadId])
+}
+
+// --- Documentos ---
+
+model Documento {
+  id          String               @id @default(uuid())
+  carpeta     String
+  nombre      String
+  url         String? // enlace externo o storageKey
+  archivoId   String?
+  visibilidad VisibilidadDocumento @default(PUBLICO_PROPIETARIOS)
+  version     Int                  @default(1)
+  subidoPorId String?
+  createdAt   DateTime             @default(now())
+
+  @@index([carpeta])
+}
+
+// --- Lecturas de medidores ---
+
+model Medidor {
+  id       String           @id @default(uuid())
+  unidadId String
+  unidad   Unidad           @relation(fields: [unidadId], references: [id])
+  tipo     String           @default("AGUA")
+  codigo   String?
+  lecturas LecturaMedidor[]
+
+  @@index([unidadId])
+}
+
+model LecturaMedidor {
+  id          String   @id @default(uuid())
+  medidorId   String
+  medidor     Medidor  @relation(fields: [medidorId], references: [id], onDelete: Cascade)
+  unidadId    String
+  unidad      Unidad   @relation(fields: [unidadId], references: [id])
+  periodo     DateTime
+  lecturaAnt  Decimal  @default(0) @db.Decimal(12, 2)
+  lecturaAct  Decimal  @db.Decimal(12, 2)
+  consumo     Decimal  @db.Decimal(12, 2)
+  cargoId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([medidorId, periodo])
 }

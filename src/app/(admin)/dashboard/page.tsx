@@ -6,21 +6,34 @@ import { PageHeader, StatCard, Card, Table } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [unidades, propietarios, porValidar, recaudado, morosidad] =
-    await Promise.all([
-      prisma.unidad.count({ where: { activo: true } }),
-      prisma.propietario.count({ where: { activo: true } }),
-      prisma.pago.aggregate({
-        where: { estado: "POR_VALIDAR" },
-        _count: true,
-        _sum: { monto: true },
-      }),
-      prisma.pago.aggregate({
-        where: { estado: "CONFIRMADO" },
-        _sum: { monto: true },
-      }),
-      reporteMorosidad(),
-    ]);
+  const [
+    unidades,
+    propietarios,
+    porValidar,
+    recaudado,
+    morosidad,
+    egresos,
+    incidenciasAbiertas,
+    reservasPendientes,
+    votacionesAbiertas,
+  ] = await Promise.all([
+    prisma.unidad.count({ where: { activo: true } }),
+    prisma.propietario.count({ where: { activo: true } }),
+    prisma.pago.aggregate({
+      where: { estado: "POR_VALIDAR" },
+      _count: true,
+      _sum: { monto: true },
+    }),
+    prisma.pago.aggregate({
+      where: { estado: "CONFIRMADO" },
+      _sum: { monto: true },
+    }),
+    reporteMorosidad(),
+    prisma.egreso.aggregate({ where: { estado: "REGISTRADO" }, _sum: { monto: true } }),
+    prisma.incidencia.count({ where: { estado: { notIn: ["RESUELTA", "CERRADA"] } } }),
+    prisma.reserva.count({ where: { estado: "SOLICITADA" } }),
+    prisma.votacion.count({ where: { estado: "ABIERTA" } }),
+  ]);
 
   const topDeudores = morosidad.filas.slice(0, 8);
 
@@ -54,14 +67,20 @@ export default async function DashboardPage() {
           tone="success"
         />
         <StatCard
+          label="Egresos registrados"
+          value={formatPEN(egresos._sum.monto ?? 0)}
+        />
+        <StatCard
           label="Deuda 90+ días"
           value={formatPEN(morosidad.totales.d90mas)}
           tone="danger"
         />
-        <StatCard
-          label="Deuda corriente / 1-30 d"
-          value={formatPEN(morosidad.totales.corriente + morosidad.totales.d1_30)}
-        />
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Incidencias abiertas" value={String(incidenciasAbiertas)} />
+        <StatCard label="Reservas por aprobar" value={String(reservasPendientes)} />
+        <StatCard label="Votaciones abiertas" value={String(votacionesAbiertas)} />
       </div>
 
       <div className="mt-8">

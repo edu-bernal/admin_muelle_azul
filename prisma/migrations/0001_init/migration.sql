@@ -97,6 +97,21 @@ CREATE TYPE "EstadoIncidencia" AS ENUM ('REPORTADA', 'EN_EVALUACION', 'ASIGNADA'
 -- CreateEnum
 CREATE TYPE "EstadoMulta" AS ENUM ('NOTIFICADA', 'EN_DESCARGO', 'CONFIRMADA', 'ANULADA');
 
+-- CreateEnum
+CREATE TYPE "TipoVisita" AS ENUM ('VISITA', 'DELIVERY', 'PROVEEDOR', 'OBRERO', 'INQUILINO');
+
+-- CreateEnum
+CREATE TYPE "EstadoPresupuesto" AS ENUM ('BORRADOR', 'APROBADO');
+
+-- CreateEnum
+CREATE TYPE "PonderacionVoto" AS ENUM ('ALICUOTA', 'UNIDAD');
+
+-- CreateEnum
+CREATE TYPE "EstadoVotacion" AS ENUM ('BORRADOR', 'ABIERTA', 'CERRADA');
+
+-- CreateEnum
+CREATE TYPE "VisibilidadDocumento" AS ENUM ('PUBLICO_PROPIETARIOS', 'SOLO_ADMIN');
+
 -- CreateTable
 CREATE TABLE "Rol" (
     "id" TEXT NOT NULL,
@@ -698,6 +713,139 @@ CREATE TABLE "Multa" (
     CONSTRAINT "Multa_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Visita" (
+    "id" TEXT NOT NULL,
+    "unidadId" TEXT,
+    "nombre" TEXT NOT NULL,
+    "documento" TEXT,
+    "placa" TEXT,
+    "tipo" "TipoVisita" NOT NULL DEFAULT 'VISITA',
+    "preautorizada" BOOLEAN NOT NULL DEFAULT false,
+    "preautorizadaPorId" TEXT,
+    "ingresoAt" TIMESTAMP(3),
+    "salidaAt" TIMESTAMP(3),
+    "registradoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Visita_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AutorizacionPermanente" (
+    "id" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "personaNombre" TEXT NOT NULL,
+    "personaDoc" TEXT,
+    "tipo" TEXT NOT NULL,
+    "vigenciaDesde" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "vigenciaHasta" TIMESTAMP(3),
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+
+    CONSTRAINT "AutorizacionPermanente_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Vehiculo" (
+    "id" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "placa" TEXT NOT NULL,
+    "marca" TEXT,
+    "modelo" TEXT,
+    "color" TEXT,
+
+    CONSTRAINT "Vehiculo_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PresupuestoAnual" (
+    "id" TEXT NOT NULL,
+    "anio" INTEGER NOT NULL,
+    "estado" "EstadoPresupuesto" NOT NULL DEFAULT 'BORRADOR',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PresupuestoAnual_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PresupuestoPartida" (
+    "id" TEXT NOT NULL,
+    "presupuestoId" TEXT NOT NULL,
+    "partidaId" TEXT NOT NULL,
+    "montoAnual" DECIMAL(14,2) NOT NULL,
+
+    CONSTRAINT "PresupuestoPartida_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Votacion" (
+    "id" TEXT NOT NULL,
+    "pregunta" TEXT NOT NULL,
+    "descripcion" TEXT,
+    "opciones" JSONB NOT NULL,
+    "ponderacion" "PonderacionVoto" NOT NULL DEFAULT 'UNIDAD',
+    "estado" "EstadoVotacion" NOT NULL DEFAULT 'BORRADOR',
+    "abreAt" TIMESTAMP(3),
+    "cierraAt" TIMESTAMP(3),
+    "creadoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Votacion_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Voto" (
+    "id" TEXT NOT NULL,
+    "votacionId" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "opcion" TEXT NOT NULL,
+    "peso" DECIMAL(9,4) NOT NULL DEFAULT 1,
+    "emitidoPorId" TEXT,
+    "emitidoAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Voto_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Documento" (
+    "id" TEXT NOT NULL,
+    "carpeta" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "url" TEXT,
+    "archivoId" TEXT,
+    "visibilidad" "VisibilidadDocumento" NOT NULL DEFAULT 'PUBLICO_PROPIETARIOS',
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "subidoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Documento_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Medidor" (
+    "id" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "tipo" TEXT NOT NULL DEFAULT 'AGUA',
+    "codigo" TEXT,
+
+    CONSTRAINT "Medidor_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LecturaMedidor" (
+    "id" TEXT NOT NULL,
+    "medidorId" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "periodo" TIMESTAMP(3) NOT NULL,
+    "lecturaAnt" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "lecturaAct" DECIMAL(12,2) NOT NULL,
+    "consumo" DECIMAL(12,2) NOT NULL,
+    "cargoId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "LecturaMedidor_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Rol_codigo_key" ON "Rol"("codigo");
 
@@ -818,6 +966,36 @@ CREATE UNIQUE INDEX "Infraccion_codigo_key" ON "Infraccion"("codigo");
 -- CreateIndex
 CREATE INDEX "Multa_unidadId_idx" ON "Multa"("unidadId");
 
+-- CreateIndex
+CREATE INDEX "Visita_unidadId_idx" ON "Visita"("unidadId");
+
+-- CreateIndex
+CREATE INDEX "Visita_ingresoAt_idx" ON "Visita"("ingresoAt");
+
+-- CreateIndex
+CREATE INDEX "AutorizacionPermanente_unidadId_idx" ON "AutorizacionPermanente"("unidadId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Vehiculo_placa_key" ON "Vehiculo"("placa");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PresupuestoAnual_anio_key" ON "PresupuestoAnual"("anio");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PresupuestoPartida_presupuestoId_partidaId_key" ON "PresupuestoPartida"("presupuestoId", "partidaId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Voto_votacionId_unidadId_key" ON "Voto"("votacionId", "unidadId");
+
+-- CreateIndex
+CREATE INDEX "Documento_carpeta_idx" ON "Documento"("carpeta");
+
+-- CreateIndex
+CREATE INDEX "Medidor_unidadId_idx" ON "Medidor"("unidadId");
+
+-- CreateIndex
+CREATE INDEX "LecturaMedidor_medidorId_periodo_idx" ON "LecturaMedidor"("medidorId", "periodo");
+
 -- AddForeignKey
 ALTER TABLE "RolPermiso" ADD CONSTRAINT "RolPermiso_rolId_fkey" FOREIGN KEY ("rolId") REFERENCES "Rol"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -931,4 +1109,34 @@ ALTER TABLE "Multa" ADD CONSTRAINT "Multa_unidadId_fkey" FOREIGN KEY ("unidadId"
 
 -- AddForeignKey
 ALTER TABLE "Multa" ADD CONSTRAINT "Multa_infraccionId_fkey" FOREIGN KEY ("infraccionId") REFERENCES "Infraccion"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Visita" ADD CONSTRAINT "Visita_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AutorizacionPermanente" ADD CONSTRAINT "AutorizacionPermanente_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Vehiculo" ADD CONSTRAINT "Vehiculo_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PresupuestoPartida" ADD CONSTRAINT "PresupuestoPartida_presupuestoId_fkey" FOREIGN KEY ("presupuestoId") REFERENCES "PresupuestoAnual"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PresupuestoPartida" ADD CONSTRAINT "PresupuestoPartida_partidaId_fkey" FOREIGN KEY ("partidaId") REFERENCES "PartidaPresupuesto"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Voto" ADD CONSTRAINT "Voto_votacionId_fkey" FOREIGN KEY ("votacionId") REFERENCES "Votacion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Voto" ADD CONSTRAINT "Voto_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Medidor" ADD CONSTRAINT "Medidor_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LecturaMedidor" ADD CONSTRAINT "LecturaMedidor_medidorId_fkey" FOREIGN KEY ("medidorId") REFERENCES "Medidor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LecturaMedidor" ADD CONSTRAINT "LecturaMedidor_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 

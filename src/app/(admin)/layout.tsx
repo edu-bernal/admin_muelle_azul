@@ -22,24 +22,66 @@ export default async function AdminLayout({
           </div>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1">
-          <NavLink href="/dashboard" icon="📊">Dashboard</NavLink>
-          <NavLink href="/propietarios" icon="👤">Propietarios</NavLink>
-          <NavLink href="/unidades" icon="🏠">Propiedades</NavLink>
-          <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Finanzas
-          </p>
-          <NavLink href="/finanzas/emision" icon="🧾">Emisión de cuotas</NavLink>
-          <NavLink href="/finanzas/pagos" icon="💵">Pagos</NavLink>
-          <NavLink href="/finanzas/estados-cuenta" icon="📄">Estados de cuenta</NavLink>
-          <NavLink href="/finanzas/morosidad" icon="⏰">Morosidad</NavLink>
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
+          {can(user, "finanzas.reportes") && (
+            <NavLink href="/dashboard" icon="📊">Dashboard</NavLink>
+          )}
+          {can(user, "propietarios.leer") && (
+            <NavLink href="/propietarios" icon="👤">Propietarios</NavLink>
+          )}
+          {can(user, "unidades.leer") && (
+            <NavLink href="/unidades" icon="🏠">Propiedades</NavLink>
+          )}
+
+          {can(user, "finanzas.emitir") && (
+            <>
+              <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Finanzas
+              </p>
+              <NavLink href="/finanzas/emision" icon="🧾">Emisión de cuotas</NavLink>
+              <NavLink href="/finanzas/pagos" icon="💵">Pagos</NavLink>
+              <NavLink href="/finanzas/estados-cuenta" icon="📄">Estados de cuenta</NavLink>
+              <NavLink href="/finanzas/morosidad" icon="⏰">Morosidad</NavLink>
+              {can(user, "conciliacion.gestionar") && (
+                <NavLink href="/finanzas/conciliacion" icon="🏦">Conciliación</NavLink>
+              )}
+            </>
+          )}
+
           <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
             Operación
           </p>
-          <NavLink href="/comunicados" icon="📣">Comunicados</NavLink>
-          <NavLink href="/reservas" icon="🏖️">Reservas</NavLink>
-          <NavLink href="/incidencias" icon="🛠️">Incidencias</NavLink>
-          <NavLink href="/multas" icon="⚠️">Multas</NavLink>
+          {can(user, "comunicados.gestionar") && (
+            <NavLink href="/comunicados" icon="📣">Comunicados</NavLink>
+          )}
+          {can(user, "reservas.ver") && (
+            <NavLink href="/reservas" icon="🏖️">Reservas</NavLink>
+          )}
+          {can(user, "incidencias.ver") && (
+            <NavLink href="/incidencias" icon="🛠️">Incidencias</NavLink>
+          )}
+          {can(user, "multas.gestionar") && (
+            <NavLink href="/multas" icon="⚠️">Multas</NavLink>
+          )}
+          {can(user, "accesos.ver") && (
+            <NavLink href="/accesos" icon="🚪">Accesos</NavLink>
+          )}
+
+          {can(user, "presupuesto.ver") && (
+            <>
+              <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Gobernanza
+              </p>
+              <NavLink href="/presupuesto" icon="📈">Presupuesto</NavLink>
+              {can(user, "votaciones.gestionar") && (
+                <NavLink href="/votaciones" icon="🗳️">Votaciones</NavLink>
+              )}
+              {can(user, "documentos.ver") && (
+                <NavLink href="/documentos" icon="📁">Documentos</NavLink>
+              )}
+            </>
+          )}
+
           {can(user, "proveedores.gestionar") && (
             <>
               <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">

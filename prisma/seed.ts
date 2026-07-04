@@ -24,6 +24,11 @@ async function seedConfiguracion() {
       valor: [{ banco: "BBVA", numero: "0011-XXXX-XXXXXXXXXX", cci: "" }],
       descripcion: "Cuentas para que el propietario deposite",
     },
+    {
+      clave: "planilla",
+      valor: { pension: 0.13, essalud: 0.09 },
+      descripcion: "Tasas de planilla (descuento de pensión y aporte EsSalud)",
+    },
   ];
   for (const it of items) {
     await prisma.configuracion.upsert({
@@ -312,6 +317,98 @@ async function seedOperacionDemo() {
   }
 }
 
+async function seedFase3() {
+  const ANIO = 2026;
+
+  // Presupuesto anual + partidas (si no existe)
+  const yaPres = await prisma.presupuestoAnual.findUnique({ where: { anio: ANIO } });
+  if (!yaPres) {
+    const partidas = await prisma.partidaPresupuesto.findMany();
+    const montos: Record<string, number> = {
+      MANT_INTEGRAL: 130000,
+      SALVAVIDAS: 12000,
+      VIGILANCIA: 36000,
+      ELECTRICO: 8000,
+      COMPRAS: 6000,
+      PLANILLA: 60000,
+      ADMIN: 24000,
+      FONDO_RESERVA: 20000,
+    };
+    const pres = await prisma.presupuestoAnual.create({
+      data: { anio: ANIO, estado: "APROBADO" },
+    });
+    for (const p of partidas) {
+      const monto = montos[p.codigo] ?? 0;
+      if (monto > 0) {
+        await prisma.presupuestoPartida.create({
+          data: { presupuestoId: pres.id, partidaId: p.id, montoAnual: D(monto) },
+        });
+      }
+    }
+    // Egresos reales de ejemplo para mostrar ejecución
+    const partidaId = (c: string) => partidas.find((x) => x.codigo === c)?.id ?? null;
+    const egresos = [
+      { c: "MANT_INTEGRAL", m: 10435.4, d: "Mantenimiento integral enero" },
+      { c: "MANT_INTEGRAL", m: 10435.4, d: "Mantenimiento integral febrero" },
+      { c: "SALVAVIDAS", m: 960, d: "Salvavidas fines de semana enero" },
+      { c: "ELECTRICO", m: 2100, d: "Compra de 10 luminarias" },
+      { c: "VIGILANCIA", m: 3000, d: "Vigilancia enero" },
+    ];
+    for (const e of egresos) {
+      await prisma.egreso.create({
+        data: {
+          tipoOrigen: "OTRO",
+          partidaId: partidaId(e.c),
+          descripcion: e.d,
+          fechaPago: new Date(Date.UTC(ANIO, 1, 15)),
+          monto: D(e.m),
+          medio: "TRANSFERENCIA",
+        },
+      });
+    }
+  }
+
+  // Votación demo
+  const votCount = await prisma.votacion.count();
+  if (votCount === 0) {
+    await prisma.votacion.create({
+      data: {
+        pregunta: "¿Aprobar la instalación de paneles solares en áreas comunes?",
+        descripcion: "Inversión estimada de S/ 45,000 financiada con el fondo de reserva.",
+        opciones: ["Sí", "No", "Abstención"],
+        ponderacion: "UNIDAD",
+        estado: "ABIERTA",
+        abreAt: new Date(),
+      },
+    });
+  }
+
+  // Documentos demo
+  const docCount = await prisma.documento.count();
+  if (docCount === 0) {
+    await prisma.documento.createMany({
+      data: [
+        { carpeta: "Reglamento", nombre: "Reglamento Interno del Condominio", visibilidad: "PUBLICO_PROPIETARIOS" },
+        { carpeta: "Actas", nombre: "Acta de Asamblea General 2026", visibilidad: "PUBLICO_PROPIETARIOS" },
+        { carpeta: "Finanzas", nombre: "Estado Financiero 2025", visibilidad: "PUBLICO_PROPIETARIOS" },
+      ],
+    });
+  }
+
+  // Vehículo demo en la primera unidad con propietario
+  const vehCount = await prisma.vehiculo.count();
+  if (vehCount === 0) {
+    const unidad = await prisma.unidad.findFirst({
+      where: { titularidades: { some: {} } },
+    });
+    if (unidad) {
+      await prisma.vehiculo.create({
+        data: { unidadId: unidad.id, placa: "ABC-123", marca: "Toyota", modelo: "Yaris", color: "Gris" },
+      });
+    }
+  }
+}
+
 async function main() {
   console.log("Sembrando datos…");
   await seedConfiguracion();
@@ -327,6 +424,7 @@ async function main() {
   await seedTrabajadores();
   await seedDemo();
   await seedOperacionDemo();
+  await seedFase3();
   console.log("Seed completado ✔");
 }
 

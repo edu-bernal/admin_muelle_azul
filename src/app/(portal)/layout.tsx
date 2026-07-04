@@ -38,9 +38,13 @@ export default async function PortalLayout({
         </div>
         <nav className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-2 pb-2">
           <NavLink href="/portal" icon="📄" exact>Mi cuenta</NavLink>
+          <NavLink href="/portal/pagar" icon="💳">Pagar</NavLink>
           <NavLink href="/portal/comunicados" icon="📣">Comunicados</NavLink>
           <NavLink href="/portal/reservas" icon="🏖️">Reservas</NavLink>
           <NavLink href="/portal/incidencias" icon="🛠️">Incidencias</NavLink>
+          <NavLink href="/portal/votaciones" icon="🗳️">Votaciones</NavLink>
+          <NavLink href="/portal/visitas" icon="🚪">Visitas</NavLink>
+          <NavLink href="/portal/documentos" icon="📁">Documentos</NavLink>
         </nav>
       </header>
       <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>

@@ -2,7 +2,7 @@
 
 Plataforma web para la administración integral del condominio de playa **Muelle Azul** (Perú): propietarios, propiedades, cuotas y pagos, estados de cuenta, morosidad, proveedores, servicios de terceros y planillas de personal — con panel de **administración** y **portal del propietario** con distintos niveles de acceso.
 
-> Estado: **Fase 1 (núcleo financiero) + Fase 2 (operación diaria)** implementadas. El diseño completo de todas las fases está en [`docs/`](docs).
+> Estado: **Fases 1, 2 y 3 implementadas** (núcleo financiero, operación diaria y optimización). El diseño completo está en [`docs/`](docs).
 
 🎨 **Demo visual (GitHub Pages):** https://edu-bernal.github.io/admin_muelle_azul/ — pantallas de la app con datos ficticios, sin backend. Es solo una vista previa; la app real necesita servidor + base de datos (ver [Despliegue](#despliegue)).
 
@@ -41,6 +41,17 @@ Arquitectura de monolito modular: la lógica de negocio vive en `src/modules/` (
 - **Reservas de áreas comunes** — piscina, parrillas, salón y cancha, con aprobación y cobro de tarifa (genera cargo).
 - **Incidencias** — tickets de mantenimiento con flujo de estados e historial.
 - **Multas** — catálogo de infracciones; al confirmarse se cargan al estado de cuenta de la unidad.
+
+### Fase 3 — Optimización
+
+- **Control de acceso / Garita** — registro de visitas (ingreso/salida), pre-autorización desde el portal, padrón vehicular; rol Garita con vista dedicada.
+- **Presupuesto anual** — ejecución presupuestal (presupuestado vs. real por partida) y simulador de cuota.
+- **Votaciones** — consultas a la asamblea con voto ponderado (por unidad o alícuota); el propietario vota desde su portal.
+- **Documentos** — repositorio con visibilidad por rol.
+- **Pagos en línea** — pasarela en modo sandbox (estructura lista para Culqi/MercadoPago/Niubiz vía webhook).
+- **Conciliación bancaria** — cruce del extracto (CSV) con los pagos por validar.
+- **Planilla avanzada** — generación de planilla con descuento de pensión y adelantos, y registro del pago como egreso.
+- **Dashboard ampliado** — egresos, incidencias abiertas, reservas por aprobar y votaciones.
 
 ## Puesta en marcha (local)
 
@@ -115,9 +126,14 @@ Tablas/             # Excel operativos reales (fuente de la migración de datos)
 - **App real (funcional):** requiere un servidor Node + PostgreSQL. Recomendado **Vercel** (app) + **Neon/Supabase** (base de datos). Configura `DATABASE_URL` y `AUTH_SECRET`, ejecuta `prisma migrate deploy` y `db:seed`. *No se puede desplegar en GitHub Pages* porque Pages solo sirve archivos estáticos (sin servidor ni base de datos).
 - **Demo visual:** el contenido de `web-demo/` se publica automáticamente en **GitHub Pages** mediante el workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
-## Próximos pasos (fase 3)
+## Pendientes / mejoras
 
-Control de acceso/visitas (garita), presupuesto anual, dashboard ampliado, pagos en línea (pasarela), conciliación bancaria, votaciones y planilla avanzada. Ver el [roadmap](docs/04-ROADMAP-IMPLEMENTACION.md).
+- Conectar una pasarela de pago real (Culqi/MercadoPago) reemplazando el sandbox por el webhook de confirmación.
+- UI de lecturas de medidores (el modelo de datos ya existe) y mantenimiento preventivo programado.
+- Almacenamiento real de archivos (S3/R2) para vouchers, documentos y evidencias.
+- Carga del padrón real desde `Tablas/` según [docs/05](docs/05-MIGRACION-DATOS.md).
+
+Ver el [roadmap](docs/04-ROADMAP-IMPLEMENTACION.md) para el detalle.
 
 ## Licencia
 

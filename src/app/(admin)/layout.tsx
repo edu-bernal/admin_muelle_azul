@@ -33,6 +33,13 @@ export default async function AdminLayout({
           <NavLink href="/finanzas/pagos" icon="💵">Pagos</NavLink>
           <NavLink href="/finanzas/estados-cuenta" icon="📄">Estados de cuenta</NavLink>
           <NavLink href="/finanzas/morosidad" icon="⏰">Morosidad</NavLink>
+          <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Operación
+          </p>
+          <NavLink href="/comunicados" icon="📣">Comunicados</NavLink>
+          <NavLink href="/reservas" icon="🏖️">Reservas</NavLink>
+          <NavLink href="/incidencias" icon="🛠️">Incidencias</NavLink>
+          <NavLink href="/multas" icon="⚠️">Multas</NavLink>
           {can(user, "proveedores.gestionar") && (
             <>
               <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">

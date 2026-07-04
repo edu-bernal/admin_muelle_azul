@@ -2,7 +2,9 @@
 
 Plataforma web para la administración integral del condominio de playa **Muelle Azul** (Perú): propietarios, propiedades, cuotas y pagos, estados de cuenta, morosidad, proveedores, servicios de terceros y planillas de personal — con panel de **administración** y **portal del propietario** con distintos niveles de acceso.
 
-> Estado: **MVP financiero funcional** (Fase 1). El diseño completo de todas las fases está en [`docs/`](docs).
+> Estado: **Fase 1 (núcleo financiero) + Fase 2 (operación diaria)** implementadas. El diseño completo de todas las fases está en [`docs/`](docs).
+
+🎨 **Demo visual (GitHub Pages):** https://edu-bernal.github.io/admin_muelle_azul/ — pantallas de la app con datos ficticios, sin backend. Es solo una vista previa; la app real necesita servidor + base de datos (ver [Despliegue](#despliegue)).
 
 ---
 
@@ -31,7 +33,14 @@ Arquitectura de monolito modular: la lógica de negocio vive en `src/modules/` (
 - **Morosidad** — reporte por antigüedad de deuda (corriente / 1-30 / 31-60 / 61-90 / 90+).
 - **Proveedores** y **Planillas** — maestros base.
 - **Auditoría** — toda operación financiera queda registrada en `audit_log`.
-- **Portal del propietario** — su estado de cuenta y declaración de pagos.
+- **Portal del propietario** — su estado de cuenta, declaración de pagos, comunicados, reservas e incidencias.
+
+### Fase 2 — Operación diaria
+
+- **Comunicados** — avisos con audiencia por sector, visibles en el portal.
+- **Reservas de áreas comunes** — piscina, parrillas, salón y cancha, con aprobación y cobro de tarifa (genera cargo).
+- **Incidencias** — tickets de mantenimiento con flujo de estados e historial.
+- **Multas** — catálogo de infracciones; al confirmarse se cargan al estado de cuenta de la unidad.
 
 ## Puesta en marcha (local)
 
@@ -101,9 +110,14 @@ Tablas/             # Excel operativos reales (fuente de la migración de datos)
 | [04 — Roadmap](docs/04-ROADMAP-IMPLEMENTACION.md) | Sprints, backlog priorizado y criterios de aceptación |
 | [05 — Migración de Datos](docs/05-MIGRACION-DATOS.md) | Análisis de los Excel reales y plan de carga |
 
-## Próximos pasos (fases 2-3)
+## Despliegue
 
-Reservas de áreas comunes, control de acceso/visitas, incidencias, comunicados, multas, presupuesto anual, dashboard ampliado, pagos en línea (pasarela), conciliación bancaria, votaciones y planilla avanzada. Ver el [roadmap](docs/04-ROADMAP-IMPLEMENTACION.md).
+- **App real (funcional):** requiere un servidor Node + PostgreSQL. Recomendado **Vercel** (app) + **Neon/Supabase** (base de datos). Configura `DATABASE_URL` y `AUTH_SECRET`, ejecuta `prisma migrate deploy` y `db:seed`. *No se puede desplegar en GitHub Pages* porque Pages solo sirve archivos estáticos (sin servidor ni base de datos).
+- **Demo visual:** el contenido de `web-demo/` se publica automáticamente en **GitHub Pages** mediante el workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+
+## Próximos pasos (fase 3)
+
+Control de acceso/visitas (garita), presupuesto anual, dashboard ampliado, pagos en línea (pasarela), conciliación bancaria, votaciones y planilla avanzada. Ver el [roadmap](docs/04-ROADMAP-IMPLEMENTACION.md).
 
 ## Licencia
 

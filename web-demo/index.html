@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="es" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Muelle Azul — Demo visual del sistema de administración</title>
+    <meta
+      name="description"
+      content="Demo visual (estática, datos ficticios) del sistema de administración del condominio de playa Muelle Azul."
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: { brand: "#0369a1", branddark: "#075985" },
+          },
+        },
+      };
+    </script>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif; }
+      .screen { display: none; }
+      .screen.active { display: block; }
+      .navlink.active { background: #0369a1; color: #fff; }
+    </style>
+  </head>
+  <body class="h-full bg-slate-100 text-slate-900">
+    <!-- Banner demo -->
+    <div class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+      🎨 <strong>Demo visual</strong> — datos ficticios, sin backend. La aplicación
+      real corre con Next.js + PostgreSQL.
+      <a class="underline" href="https://github.com/edu-bernal/admin_muelle_azul" target="_blank" rel="noopener">Ver el código →</a>
+    </div>
+
+    <div class="flex min-h-[calc(100vh-40px)]">
+      <!-- Sidebar -->
+      <aside class="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
+        <div class="mb-6 flex items-center gap-2 px-2">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-lg">🌊</span>
+          <div>
+            <p class="text-sm font-semibold">Muelle Azul</p>
+            <p id="roleLabel" class="text-xs text-slate-400">Administración</p>
+          </div>
+        </div>
+        <nav id="nav" class="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-600"></nav>
+        <div class="mt-4 border-t border-slate-100 pt-4">
+          <button id="roleToggle" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
+            👤 Ver como propietario
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 overflow-x-hidden p-6 lg:p-8">
+        <!-- Dashboard -->
+        <section id="dashboard" class="screen active">
+          <h1 class="mb-1 text-2xl font-semibold">Dashboard</h1>
+          <p class="mb-6 text-sm text-slate-500">Resumen general del condominio Muelle Azul</p>
+          <div id="kpis" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"></div>
+          <h2 class="mb-3 mt-8 text-lg font-semibold">Principales deudores</h2>
+          <div id="deudores"></div>
+        </section>
+
+        <!-- Propietarios -->
+        <section id="propietarios" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Propietarios</h1>
+          <p class="mb-6 text-sm text-slate-500">Padrón de propietarios del condominio</p>
+          <div id="tablaPropietarios"></div>
+        </section>
+
+        <!-- Estado de cuenta -->
+        <section id="estado" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Estado de cuenta</h1>
+          <p class="mb-6 text-sm text-slate-500">María López Demo · Unidad MA_C-A_2</p>
+          <div id="estadoCards" class="mb-4 grid gap-4 sm:grid-cols-3"></div>
+          <div id="estadoTabla"></div>
+        </section>
+
+        <!-- Morosidad -->
+        <section id="morosidad" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Morosidad</h1>
+          <p class="mb-6 text-sm text-slate-500">Deuda por antigüedad al 2026-07-04</p>
+          <div id="morosidadCards" class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5"></div>
+          <div id="morosidadTabla"></div>
+        </section>
+
+        <!-- Pagos -->
+        <section id="pagos" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Pagos</h1>
+          <p class="mb-6 text-sm text-slate-500">Registro de pagos y bandeja de validación</p>
+          <div id="pagosGrid" class="grid gap-6 lg:grid-cols-2"></div>
+        </section>
+
+        <!-- Comunicados -->
+        <section id="comunicados" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Comunicados</h1>
+          <p class="mb-6 text-sm text-slate-500">Avisos para los propietarios</p>
+          <div id="listaComunicados" class="space-y-3"></div>
+        </section>
+
+        <!-- Reservas -->
+        <section id="reservas" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Reservas de áreas comunes</h1>
+          <p class="mb-6 text-sm text-slate-500">Piscina, parrillas, salón y cancha</p>
+          <div id="areasCards" class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"></div>
+          <div id="reservasTabla"></div>
+        </section>
+
+        <!-- Incidencias -->
+        <section id="incidencias" class="screen">
+          <h1 class="mb-1 text-2xl font-semibold">Incidencias</h1>
+          <p class="mb-6 text-sm text-slate-500">Reportes de mantenimiento y su seguimiento</p>
+          <div id="incidenciasTabla"></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const money = (n) =>
+        new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(n);
+
+      const NAV_ADMIN = [
+        ["dashboard", "📊", "Dashboard"],
+        ["propietarios", "👤", "Propietarios"],
+        ["estado", "📄", "Estados de cuenta"],
+        ["morosidad", "⏰", "Morosidad"],
+        ["pagos", "💵", "Pagos"],
+        ["comunicados", "📣", "Comunicados"],
+        ["reservas", "🏖️", "Reservas"],
+        ["incidencias", "🛠️", "Incidencias"],
+      ];
+
+      const card = (label, value, tone = "", hint = "") => `
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-sm text-slate-500">${label}</p>
+          <p class="mt-1 text-2xl font-semibold ${tone}">${value}</p>
+          ${hint ? `<p class="mt-1 text-xs text-slate-400">${hint}</p>` : ""}
+        </div>`;
+
+      const badge = (t) => {
+        const map = {
+          PENDIENTE: "bg-amber-100 text-amber-700", PARCIAL: "bg-blue-100 text-blue-700",
+          PAGADO: "bg-emerald-100 text-emerald-700", CONFIRMADA: "bg-emerald-100 text-emerald-700",
+          SOLICITADA: "bg-amber-100 text-amber-700", POR_VALIDAR: "bg-amber-100 text-amber-700",
+          REPORTADA: "bg-amber-100 text-amber-700", ASIGNADA: "bg-blue-100 text-blue-700",
+          RESUELTA: "bg-emerald-100 text-emerald-700", ALTA: "bg-red-100 text-red-700",
+          MEDIA: "bg-amber-100 text-amber-700",
+        };
+        return `<span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[t] || "bg-slate-100 text-slate-600"}">${t}</span>`;
+      };
+
+      const table = (head, rows) => `
+        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr>${head}</tr></thead>
+            <tbody class="divide-y divide-slate-100">${rows}</tbody>
+          </table>
+        </div>`;
+
+      // ---- Datos ficticios ----
+      const deudores = [
+        ["MA_C-F_32", "MA Central", "Prospero H. Demo", 1800, 3450],
+        ["MA_N-C_5", "MA Norte", "—", 1500, 1500],
+        ["MA_A-B1_13", "MA Ampliación", "Máximo M. Demo", 900, 1350],
+        ["MA_C-K_6", "MA Central", "Carlos E. Demo", 600, 900],
+        ["MA_O-A2_4", "MA Oeste", "Christian O. Demo", 300, 750],
+      ];
+
+      const propietarios = [
+        ["Juan Pérez Demo", "DNI 40123456", "propietario1@ejemplo.com", "MA_C-A_1", "CORREO"],
+        ["María López Demo", "DNI 41234567", "propietario2@ejemplo.com", "MA_C-A_2", "CORREO"],
+        ["Carlos Ramírez Demo", "—", "998877665", "MA_C-B_6", "WHATSAPP"],
+        ["Ana Torres Demo", "CE 001234", "—", "MA_A-C1_6", "WHATSAPP"],
+        ["Luis Gómez Demo", "DNI 42345678", "propietario5@ejemplo.com", "MA_O-A2_3", "CORREO"],
+      ];
+
+      const estado = [
+        ["MA_C-A_2", "Cuota de Mantenimiento — 2026-01", "2026-01-15", 150, 150, 0, "PAGADO"],
+        ["MA_C-A_2", "Cuota de Mantenimiento — 2026-02", "2026-02-15", 150, 150, 0, "PAGADO"],
+        ["MA_C-A_2", "Cuota de Mantenimiento — 2026-03", "2026-03-15", 150, 50, 100, "PARCIAL"],
+        ["MA_C-A_2", "Cuota de Mantenimiento — 2026-04", "2026-04-15", 150, 0, 150, "PENDIENTE"],
+      ];
+
+      const reservas = [
+        ["2026-07-12", "Zona de Parrillas", "MA_C-A_1", "12:00–17:00", "SOLICITADA"],
+        ["2026-07-06", "Salón Multiusos", "MA_C-A_2", "18:00–23:00", "CONFIRMADA"],
+        ["2026-07-05", "Piscina", "MA_O-A2_3", "10:00–13:00", "CONFIRMADA"],
+      ];
+
+      const incidencias = [
+        ["INC-0003", "Fuga de agua en pasaje 4", "MA_A-C1_6", "SANITARIO", "ALTA", "ASIGNADA"],
+        ["INC-0002", "Poda de jardines pendiente", "General", "JARDINES", "MEDIA", "REPORTADA"],
+        ["INC-0001", "Luminaria quemada en parque", "General", "ELECTRICO", "MEDIA", "RESUELTA"],
+      ];
+
+      const comunicados = [
+        ["Mantenimiento de la piscina", "La piscina estará en mantenimiento el lunes de 8:00 a 12:00. Disculpen las molestias.", "2026-07-01"],
+        ["Cuota extraordinaria por oleaje", "Se aprobó en asamblea una cuota extraordinaria de S/ 100 para reparar el muro de contención.", "2026-06-20"],
+        ["Horario de vigilancia de verano", "Desde enero el servicio de vigilancia y salvavidas opera todos los fines de semana.", "2026-06-10"],
+      ];
+
+      const areas = [
+        ["Piscina", "Aforo 40", "Sin costo"],
+        ["Zona de Parrillas", "Aforo 20", money(50)],
+        ["Salón Multiusos", "Aforo 60", money(150)],
+        ["Cancha Deportiva", "Aforo 15", "Sin costo"],
+      ];
+
+      // ---- Render ----
+      function render() {
+        document.getElementById("kpis").innerHTML =
+          card("Unidades activas", "424") +
+          card("Propietarios", "312") +
+          card("Deuda total", money(248350), "text-red-600", "168 unidades con saldo") +
+          card("Pagos por validar", "3", "", money(650));
+
+        document.getElementById("deudores").innerHTML = table(
+          `<th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Sector</th><th class="px-4 py-3">Responsable</th><th class="px-4 py-3 text-right">90+ días</th><th class="px-4 py-3 text-right">Total</th>`,
+          deudores.map((d) => `<tr>
+            <td class="px-4 py-3 font-medium">${d[0]}</td>
+            <td class="px-4 py-3 text-slate-500">${d[1]}</td>
+            <td class="px-4 py-3">${d[2]}</td>
+            <td class="px-4 py-3 text-right text-red-600">${money(d[3])}</td>
+            <td class="px-4 py-3 text-right font-semibold">${money(d[4])}</td></tr>`).join(""));
+
+        document.getElementById("tablaPropietarios").innerHTML = table(
+          `<th class="px-4 py-3">Nombre</th><th class="px-4 py-3">Documento</th><th class="px-4 py-3">Contacto</th><th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Canal</th>`,
+          propietarios.map((p) => `<tr>
+            <td class="px-4 py-3 font-medium">${p[0]}</td>
+            <td class="px-4 py-3 text-slate-500">${p[1]}</td>
+            <td class="px-4 py-3 text-slate-500">${p[2]}</td>
+            <td class="px-4 py-3">${p[3]}</td>
+            <td class="px-4 py-3">${badge(p[4])}</td></tr>`).join(""));
+
+        document.getElementById("estadoCards").innerHTML =
+          card("Total cargado", money(600)) +
+          card("Total pagado", money(350), "text-emerald-600") +
+          card("Saldo por pagar", money(250), "text-red-600");
+        document.getElementById("estadoTabla").innerHTML = table(
+          `<th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Concepto</th><th class="px-4 py-3">Vence</th><th class="px-4 py-3 text-right">Monto</th><th class="px-4 py-3 text-right">Pagado</th><th class="px-4 py-3 text-right">Saldo</th><th class="px-4 py-3">Estado</th>`,
+          estado.map((e) => `<tr>
+            <td class="px-4 py-3 font-medium">${e[0]}</td>
+            <td class="px-4 py-3">${e[1]}</td>
+            <td class="px-4 py-3 text-slate-500">${e[2]}</td>
+            <td class="px-4 py-3 text-right">${money(e[3])}</td>
+            <td class="px-4 py-3 text-right text-emerald-600">${money(e[4])}</td>
+            <td class="px-4 py-3 text-right font-medium">${money(e[5])}</td>
+            <td class="px-4 py-3">${badge(e[6])}</td></tr>`).join(""));
+
+        document.getElementById("morosidadCards").innerHTML =
+          card("Corriente", money(12500)) + card("1–30 días", money(38200)) +
+          card("31–60 días", money(41800)) + card("61–90 días", money(35600)) +
+          card("90+ días", money(120250), "text-red-600");
+        document.getElementById("morosidadTabla").innerHTML = table(
+          `<th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Sector</th><th class="px-4 py-3">Responsable</th><th class="px-4 py-3 text-right">90+</th><th class="px-4 py-3 text-right">Total</th>`,
+          deudores.map((d) => `<tr>
+            <td class="px-4 py-3 font-medium">${d[0]}</td>
+            <td class="px-4 py-3 text-slate-500">${d[1]}</td>
+            <td class="px-4 py-3">${d[2]}</td>
+            <td class="px-4 py-3 text-right text-red-600">${money(d[3])}</td>
+            <td class="px-4 py-3 text-right font-semibold">${money(d[4])}</td></tr>`).join(""));
+
+        document.getElementById("pagosGrid").innerHTML = `
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="mb-4 text-lg font-semibold">Registrar pago</h2>
+            <div class="space-y-3 text-sm">
+              <div><span class="text-slate-500">Propietario</span><div class="mt-1 rounded-lg border border-slate-300 px-3 py-2">María López Demo</div></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div><span class="text-slate-500">Monto</span><div class="mt-1 rounded-lg border border-slate-300 px-3 py-2">S/ 300.00</div></div>
+                <div><span class="text-slate-500">Medio</span><div class="mt-1 rounded-lg border border-slate-300 px-3 py-2">Depósito BBVA</div></div>
+              </div>
+              <p class="text-xs text-slate-400">El pago se aplica automáticamente a los cargos más antiguos (FIFO) y genera un recibo de caja.</p>
+              <button class="rounded-lg bg-brand px-4 py-2 font-medium text-white">Registrar y aplicar</button>
+            </div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="mb-4 text-lg font-semibold">Por validar (3)</h2>
+            <div class="space-y-3">
+              ${[["Juan Pérez Demo", 150, "Yape"], ["Ana Torres Demo", 300, "Transferencia"], ["Luis Gómez Demo", 200, "Yape"]].map((p) => `
+                <div class="rounded-lg border border-slate-200 p-3">
+                  <div class="flex items-center justify-between"><span class="font-medium">${p[0]}</span><span class="font-semibold">${money(p[1])}</span></div>
+                  <p class="text-xs text-slate-400">${p[2]} · 2026-07-03</p>
+                  <div class="mt-2 flex gap-2">
+                    <button class="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white">Confirmar</button>
+                    <button class="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white">Rechazar</button>
+                  </div>
+                </div>`).join("")}
+            </div>
+          </div>`;
+
+        document.getElementById("listaComunicados").innerHTML = comunicados.map((c) => `
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold">${c[0]}</h3><span class="shrink-0 text-xs text-slate-400">${c[2]}</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-600">${c[1]}</p>
+          </div>`).join("");
+
+        document.getElementById("areasCards").innerHTML = areas.map((a) => `
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="font-medium">${a[0]}</p><p class="text-sm text-slate-500">${a[1]} · ${a[2]}</p>
+          </div>`).join("");
+        document.getElementById("reservasTabla").innerHTML = table(
+          `<th class="px-4 py-3">Fecha</th><th class="px-4 py-3">Área</th><th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Horario</th><th class="px-4 py-3">Estado</th>`,
+          reservas.map((r) => `<tr>
+            <td class="px-4 py-3">${r[0]}</td><td class="px-4 py-3 font-medium">${r[1]}</td>
+            <td class="px-4 py-3 text-slate-500">${r[2]}</td><td class="px-4 py-3 text-slate-500">${r[3]}</td>
+            <td class="px-4 py-3">${badge(r[4])}</td></tr>`).join(""));
+
+        document.getElementById("incidenciasTabla").innerHTML = table(
+          `<th class="px-4 py-3">Código</th><th class="px-4 py-3">Título</th><th class="px-4 py-3">Unidad</th><th class="px-4 py-3">Categoría</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Estado</th>`,
+          incidencias.map((i) => `<tr>
+            <td class="px-4 py-3 font-medium">${i[0]}</td><td class="px-4 py-3">${i[1]}</td>
+            <td class="px-4 py-3 text-slate-500">${i[2]}</td><td class="px-4 py-3 text-slate-500">${i[3]}</td>
+            <td class="px-4 py-3">${badge(i[4])}</td><td class="px-4 py-3">${badge(i[5])}</td></tr>`).join(""));
+      }
+
+      function buildNav() {
+        document.getElementById("nav").innerHTML = NAV_ADMIN.map(
+          ([id, icon, label]) =>
+            `<a href="#${id}" data-screen="${id}" class="navlink flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-100">${icon} ${label}</a>`
+        ).join("");
+        document.querySelectorAll(".navlink").forEach((a) =>
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            show(a.dataset.screen);
+          })
+        );
+      }
+
+      function show(id) {
+        document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+        document.querySelectorAll(".navlink").forEach((a) =>
+          a.classList.toggle("active", a.dataset.screen === id)
+        );
+        window.scrollTo(0, 0);
+      }
+
+      buildNav();
+      render();
+      show("dashboard");
+      document.querySelector('.navlink[data-screen="dashboard"]').classList.add("active");
+
+      // Toggle rol (demo): resalta portal vs admin
+      let propietarioView = false;
+      document.getElementById("roleToggle").addEventListener("click", () => {
+        propietarioView = !propietarioView;
+        document.getElementById("roleLabel").textContent = propietarioView
+          ? "Portal del propietario" : "Administración";
+        document.getElementById("roleToggle").textContent = propietarioView
+          ? "🛡️ Ver como administrador" : "👤 Ver como propietario";
+        // En modo propietario, muestra su estado de cuenta
+        if (propietarioView) show("estado");
+        else show("dashboard");
+      });
+    </script>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/app/login/actions";
+import { NavLink } from "@/components/nav";
 
 export default async function PortalLayout({
   children,
@@ -35,6 +36,12 @@ export default async function PortalLayout({
             </form>
           </div>
         </div>
+        <nav className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-2 pb-2">
+          <NavLink href="/portal" icon="📄" exact>Mi cuenta</NavLink>
+          <NavLink href="/portal/comunicados" icon="📣">Comunicados</NavLink>
+          <NavLink href="/portal/reservas" icon="🏖️">Reservas</NavLink>
+          <NavLink href="/portal/incidencias" icon="🛠️">Incidencias</NavLink>
+        </nav>
       </header>
       <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
     </div>

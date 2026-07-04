@@ -7,13 +7,17 @@ export function NavLink({
   href,
   icon,
   children,
+  exact = false,
 }: {
   href: string;
   icon: string;
   children: string;
+  exact?: boolean;
 }) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + "/");
+  const active = exact
+    ? pathname === href
+    : pathname === href || pathname.startsWith(href + "/");
   return (
     <Link
       href={href}

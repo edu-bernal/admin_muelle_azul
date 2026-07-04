@@ -20,6 +20,15 @@ export const PERMISOS: Record<string, string> = {
   "proveedores.gestionar": "Gestionar proveedores y facturas",
   "servicios.gestionar": "Gestionar servicios de terceros",
   "planillas.gestionar": "Gestionar planillas de personal",
+  "comunicados.gestionar": "Publicar y gestionar comunicados",
+  "comunicados.ver": "Ver comunicados",
+  "reservas.gestionar": "Aprobar y gestionar reservas y áreas comunes",
+  "reservas.crear": "Crear una reserva",
+  "reservas.ver": "Ver reservas",
+  "incidencias.gestionar": "Gestionar y asignar incidencias",
+  "incidencias.crear": "Reportar una incidencia",
+  "incidencias.ver": "Ver incidencias",
+  "multas.gestionar": "Registrar y confirmar multas",
   "portal.ver": "Acceder al portal del propietario",
 };
 
@@ -43,6 +52,10 @@ export const ROLES: Record<RolCodigo, { nombre: string; permisos: string[] }> = 
       "proveedores.*",
       "servicios.*",
       "planillas.*",
+      "comunicados.*",
+      "reservas.*",
+      "incidencias.*",
+      "multas.*",
     ],
   },
   CONTADOR: {
@@ -58,7 +71,12 @@ export const ROLES: Record<RolCodigo, { nombre: string; permisos: string[] }> = 
   },
   GARITA: {
     nombre: "Vigilancia / Garita",
-    permisos: ["propietarios.leer", "unidades.leer"],
+    permisos: [
+      "propietarios.leer",
+      "unidades.leer",
+      "reservas.ver",
+      "incidencias.crear",
+    ],
   },
   PROPIETARIO: {
     nombre: "Propietario",
@@ -66,11 +84,16 @@ export const ROLES: Record<RolCodigo, { nombre: string; permisos: string[] }> = 
       "portal.ver",
       "finanzas.estadocuenta.propio",
       "finanzas.pagos.declarar",
+      "comunicados.ver",
+      "reservas.crear",
+      "reservas.ver",
+      "incidencias.crear",
+      "incidencias.ver",
     ],
   },
   INQUILINO: {
     nombre: "Inquilino",
-    permisos: ["portal.ver"],
+    permisos: ["portal.ver", "comunicados.ver", "reservas.crear", "incidencias.crear"],
   },
 };
 

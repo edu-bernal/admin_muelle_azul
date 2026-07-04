@@ -242,6 +242,76 @@ async function seedDemo() {
   console.log(`  Demo: ${demo.length} unidades, cuotas ene-mar 2026`);
 }
 
+async function seedAreasComunes() {
+  const count = await prisma.areaComun.count();
+  if (count > 0) return;
+  await prisma.areaComun.createMany({
+    data: [
+      { nombre: "Piscina", aforo: 40, tarifa: D(0), requiereAprobacion: false, horario: "9:00–18:00" },
+      { nombre: "Zona de Parrillas", aforo: 20, tarifa: D(50), requiereAprobacion: true, horario: "10:00–22:00" },
+      { nombre: "Salón Multiusos", aforo: 60, tarifa: D(150), requiereAprobacion: true, horario: "9:00–23:00" },
+      { nombre: "Cancha Deportiva", aforo: 15, tarifa: D(0), requiereAprobacion: false, horario: "8:00–20:00" },
+    ],
+  });
+}
+
+async function seedInfracciones() {
+  const infracciones = [
+    { codigo: "RUIDO", descripcion: "Ruidos molestos fuera de horario", montoMin: D(100), montoMax: D(300) },
+    { codigo: "MASCOTAS", descripcion: "Mascota sin correa en áreas comunes", montoMin: D(50), montoMax: D(150) },
+    { codigo: "PISCINA", descripcion: "Mal uso de la piscina", montoMin: D(100), montoMax: D(200) },
+    { codigo: "OBRAS", descripcion: "Obras sin autorización", montoMin: D(300), montoMax: D(1000) },
+  ];
+  for (const i of infracciones) {
+    await prisma.infraccion.upsert({
+      where: { codigo: i.codigo },
+      create: i,
+      update: { descripcion: i.descripcion },
+    });
+  }
+}
+
+async function seedTrabajadores() {
+  const count = await prisma.trabajador.count();
+  if (count > 0) return;
+  await prisma.trabajador.createMany({
+    data: [
+      { nombre: "Trabajador Demo 1", puesto: "Jardinero", tipo: "MANTENIMIENTO", sueldoBase: D(1200) },
+      { nombre: "Trabajador Demo 2", puesto: "Piscinero", tipo: "MANTENIMIENTO", sueldoBase: D(1300) },
+      { nombre: "Trabajador Demo 3", puesto: "Administrador", tipo: "ADMINISTRATIVO", sueldoBase: D(2500) },
+    ],
+  });
+}
+
+async function seedOperacionDemo() {
+  const comCount = await prisma.comunicado.count();
+  if (comCount === 0) {
+    await prisma.comunicado.create({
+      data: {
+        titulo: "Mantenimiento de la piscina",
+        cuerpo:
+          "Estimados vecinos, la piscina estará en mantenimiento el próximo lunes de 8:00 a 12:00. Disculpen las molestias.",
+        audiencia: { tipo: "TODOS" },
+      },
+    });
+  }
+  const incCount = await prisma.incidencia.count();
+  if (incCount === 0) {
+    const inc = await prisma.incidencia.create({
+      data: {
+        codigo: "INC-0001",
+        categoria: "ELECTRICO",
+        titulo: "Luminaria quemada en el parque central",
+        descripcion: "La luminaria del parque frente a la manzana B no enciende.",
+        prioridad: "MEDIA",
+      },
+    });
+    await prisma.incidenciaEvento.create({
+      data: { incidenciaId: inc.id, estado: "REPORTADA", comentario: "Incidencia reportada" },
+    });
+  }
+}
+
 async function main() {
   console.log("Sembrando datos…");
   await seedConfiguracion();
@@ -252,7 +322,11 @@ async function main() {
   await seedPartidas();
   await seedRolesPermisos();
   await seedSuperAdmin();
+  await seedAreasComunes();
+  await seedInfracciones();
+  await seedTrabajadores();
   await seedDemo();
+  await seedOperacionDemo();
   console.log("Seed completado ✔");
 }
 

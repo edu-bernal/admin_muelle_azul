@@ -82,6 +82,21 @@ CREATE TYPE "CanalNotificacion" AS ENUM ('EMAIL', 'PANEL');
 -- CreateEnum
 CREATE TYPE "EstadoNotificacion" AS ENUM ('PENDIENTE', 'ENVIADA', 'FALLIDA');
 
+-- CreateEnum
+CREATE TYPE "EstadoReserva" AS ENUM ('SOLICITADA', 'CONFIRMADA', 'RECHAZADA', 'CANCELADA', 'COMPLETADA');
+
+-- CreateEnum
+CREATE TYPE "PrioridadIncidencia" AS ENUM ('BAJA', 'MEDIA', 'ALTA');
+
+-- CreateEnum
+CREATE TYPE "CategoriaIncidencia" AS ENUM ('ELECTRICO', 'SANITARIO', 'PISCINA', 'JARDINES', 'SEGURIDAD', 'LIMPIEZA', 'OTRO');
+
+-- CreateEnum
+CREATE TYPE "EstadoIncidencia" AS ENUM ('REPORTADA', 'EN_EVALUACION', 'ASIGNADA', 'EN_EJECUCION', 'RESUELTA', 'CERRADA');
+
+-- CreateEnum
+CREATE TYPE "EstadoMulta" AS ENUM ('NOTIFICADA', 'EN_DESCARGO', 'CONFIRMADA', 'ANULADA');
+
 -- CreateTable
 CREATE TABLE "Rol" (
     "id" TEXT NOT NULL,
@@ -565,6 +580,124 @@ CREATE TABLE "Notificacion" (
     CONSTRAINT "Notificacion_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Comunicado" (
+    "id" TEXT NOT NULL,
+    "titulo" TEXT NOT NULL,
+    "cuerpo" TEXT NOT NULL,
+    "audiencia" JSONB,
+    "requiereConfirmacion" BOOLEAN NOT NULL DEFAULT false,
+    "publicadoAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "vigenteHasta" TIMESTAMP(3),
+    "creadoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Comunicado_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ComunicadoLectura" (
+    "id" TEXT NOT NULL,
+    "comunicadoId" TEXT NOT NULL,
+    "usuarioId" TEXT NOT NULL,
+    "leidoAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ComunicadoLectura_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AreaComun" (
+    "id" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "aforo" INTEGER,
+    "tarifa" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "requiereAprobacion" BOOLEAN NOT NULL DEFAULT true,
+    "reglas" JSONB,
+    "horario" TEXT,
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+
+    CONSTRAINT "AreaComun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Reserva" (
+    "id" TEXT NOT NULL,
+    "areaId" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "solicitanteId" TEXT,
+    "fecha" TIMESTAMP(3) NOT NULL,
+    "horaInicio" TEXT NOT NULL,
+    "horaFin" TEXT NOT NULL,
+    "numPersonas" INTEGER,
+    "estado" "EstadoReserva" NOT NULL DEFAULT 'SOLICITADA',
+    "cargoId" TEXT,
+    "observacion" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Reserva_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Incidencia" (
+    "id" TEXT NOT NULL,
+    "codigo" TEXT NOT NULL,
+    "unidadId" TEXT,
+    "categoria" "CategoriaIncidencia" NOT NULL DEFAULT 'OTRO',
+    "titulo" TEXT NOT NULL,
+    "descripcion" TEXT NOT NULL,
+    "prioridad" "PrioridadIncidencia" NOT NULL DEFAULT 'MEDIA',
+    "estado" "EstadoIncidencia" NOT NULL DEFAULT 'REPORTADA',
+    "asignadoTipo" TEXT,
+    "asignadoId" TEXT,
+    "costoEstimado" DECIMAL(12,2),
+    "reportadoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Incidencia_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "IncidenciaEvento" (
+    "id" TEXT NOT NULL,
+    "incidenciaId" TEXT NOT NULL,
+    "estado" "EstadoIncidencia" NOT NULL,
+    "comentario" TEXT,
+    "usuarioId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "IncidenciaEvento_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Infraccion" (
+    "id" TEXT NOT NULL,
+    "codigo" TEXT NOT NULL,
+    "descripcion" TEXT NOT NULL,
+    "montoMin" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "montoMax" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+
+    CONSTRAINT "Infraccion_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Multa" (
+    "id" TEXT NOT NULL,
+    "unidadId" TEXT NOT NULL,
+    "infraccionId" TEXT,
+    "descripcion" TEXT NOT NULL,
+    "monto" DECIMAL(12,2) NOT NULL,
+    "evidencias" JSONB,
+    "estado" "EstadoMulta" NOT NULL DEFAULT 'NOTIFICADA',
+    "cargoId" TEXT,
+    "registradoPorId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Multa_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Rol_codigo_key" ON "Rol"("codigo");
 
@@ -661,6 +794,30 @@ CREATE UNIQUE INDEX "Configuracion_clave_key" ON "Configuracion"("clave");
 -- CreateIndex
 CREATE INDEX "Notificacion_usuarioId_estado_idx" ON "Notificacion"("usuarioId", "estado");
 
+-- CreateIndex
+CREATE INDEX "Comunicado_publicadoAt_idx" ON "Comunicado"("publicadoAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ComunicadoLectura_comunicadoId_usuarioId_key" ON "ComunicadoLectura"("comunicadoId", "usuarioId");
+
+-- CreateIndex
+CREATE INDEX "Reserva_areaId_fecha_idx" ON "Reserva"("areaId", "fecha");
+
+-- CreateIndex
+CREATE INDEX "Reserva_unidadId_idx" ON "Reserva"("unidadId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Incidencia_codigo_key" ON "Incidencia"("codigo");
+
+-- CreateIndex
+CREATE INDEX "Incidencia_estado_idx" ON "Incidencia"("estado");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Infraccion_codigo_key" ON "Infraccion"("codigo");
+
+-- CreateIndex
+CREATE INDEX "Multa_unidadId_idx" ON "Multa"("unidadId");
+
 -- AddForeignKey
 ALTER TABLE "RolPermiso" ADD CONSTRAINT "RolPermiso_rolId_fkey" FOREIGN KEY ("rolId") REFERENCES "Rol"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -753,4 +910,25 @@ ALTER TABLE "Adelanto" ADD CONSTRAINT "Adelanto_trabajadorId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "Egreso" ADD CONSTRAINT "Egreso_partidaId_fkey" FOREIGN KEY ("partidaId") REFERENCES "PartidaPresupuesto"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComunicadoLectura" ADD CONSTRAINT "ComunicadoLectura_comunicadoId_fkey" FOREIGN KEY ("comunicadoId") REFERENCES "Comunicado"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Reserva" ADD CONSTRAINT "Reserva_areaId_fkey" FOREIGN KEY ("areaId") REFERENCES "AreaComun"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Reserva" ADD CONSTRAINT "Reserva_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Incidencia" ADD CONSTRAINT "Incidencia_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "IncidenciaEvento" ADD CONSTRAINT "IncidenciaEvento_incidenciaId_fkey" FOREIGN KEY ("incidenciaId") REFERENCES "Incidencia"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Multa" ADD CONSTRAINT "Multa_unidadId_fkey" FOREIGN KEY ("unidadId") REFERENCES "Unidad"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Multa" ADD CONSTRAINT "Multa_infraccionId_fkey" FOREIGN KEY ("infraccionId") REFERENCES "Infraccion"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

@@ -1,8 +1,38 @@
 # Migración de Datos — Carpeta `Tablas/`
 
-**Versión:** 1.0 · **Fecha:** 04/07/2026
+**Versión:** 1.1 · **Fecha:** 05/07/2026
 
 Análisis de los archivos Excel reales de la administración (carpeta `Tablas/`) y plan de migración hacia el modelo de datos del sistema. Este documento **reemplaza y detalla** la sección 9 del [Modelo de Datos](03-MODELO-DE-DATOS.md).
+
+## Estado de la migración
+
+| Etapa | Estado |
+|---|---|
+| **Padrón (propietarios + unidades + titularidad)** | ✅ **Cargado en producción** (05/07/2026) vía `prisma/import/import-maestro-entes.ts`, desde `Maestro ENTES.xlsx`. Resultado: 424 unidades (MA_C 217, MA_A 149, MA_O 31, MA_N 27), 556 propietarios únicos, 633 titularidades, 9 unidades sin propietario registrado en el Excel (pendientes de saneamiento) |
+| Cargos históricos (2021→corte) | Pendiente — requiere confirmar la tabla de tarifas por año (pregunta abierta §6) |
+| Pagos históricos + recibos | Pendiente — depende de los cargos históricos |
+| Egresos 2026 + proveedores | Pendiente |
+| Vigilancia por unidad | Pendiente |
+
+### Cómo se ejecutó la carga del padrón
+
+```bash
+# 1. Exportar la hoja "Padron ordenado" de Maestro ENTES.xlsx a CSV (separador ;)
+# 2. Dry-run (solo reporta, no escribe nada):
+tsx prisma/import/import-maestro-entes.ts <ruta-csv>
+# 3. Aplicar (borra los datos demo de Propietario/Unidad/Titularidad/Cargo/Pago
+#    preexistentes y carga el padrón real):
+tsx prisma/import/import-maestro-entes.ts <ruta-csv> --apply
+```
+
+El script (en `prisma/import/import-maestro-entes.ts`, versionado en el repo — **sin datos reales**, el CSV nunca se commitea) hace lo siguiente:
+- Parsea el CSV con un parser consciente de comillas y saltos de línea embebidos.
+- Toma solo filas `TIPO ENTE = PROP` (excluye administrador y proveedor del maestro).
+- Construye `codigo = SECTOR-M&L` y separa manzana/lote por el primer `_`.
+- Determina el titular: propietario 1 si existe; si no, propietario 2. Si ambos existen, crea dos `PropiedadTitularidad` (50%/50%, responsable de pago = propietario 1).
+- Deduplica propietarios por nombre normalizado (mismo dueño en varios lotes → un solo registro).
+- Marca `TERRENO` las unidades confirmadas en la hoja Seguridad (A-23, J-2, J-1); el resto queda `CASA` (valor por defecto).
+- Limpia los correos/teléfonos múltiples separados por `;`, `,` o `/`.
 
 ---
 

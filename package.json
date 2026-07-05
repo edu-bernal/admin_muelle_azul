@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "db:import:padron": "tsx prisma/import/import-maestro-entes.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

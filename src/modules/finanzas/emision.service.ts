@@ -5,9 +5,13 @@ import { audit } from "@/lib/audit";
 import { primerDiaDelMes } from "./shared";
 
 export interface EmisionInput {
-  conceptoCodigo: string; // ej. "MANT"
+  conceptoCodigo: string; // "MANT" (ordinaria) | "EXTRA" (extraordinaria) | otro
   periodo: Date;
   fechaVencimiento: Date;
+  /** Monto por unidad. Requerido para conceptos distintos a MANT (no tienen tarifa recurrente). */
+  montoManual?: number;
+  /** Descripción personalizada del cargo (ej. "Cuota Extraordinaria por Oleaje"). Por defecto usa el nombre del concepto. */
+  descripcion?: string;
   creadoPorId?: string | null;
 }
 
@@ -20,8 +24,8 @@ export interface EmisionPreview {
   yaEmitida: boolean;
 }
 
-/** Determina el monto de la cuota para una unidad. */
-function montoParaUnidad(
+/** Determina el monto de la cuota ORDINARIA para una unidad (según tarifa recurrente). */
+function montoOrdinarioUnidad(
   unidad: { baseCalculoCuota: string | null; montoFijoCuota: Prisma.Decimal | null },
   tarifaGlobal: Prisma.Decimal,
 ): Prisma.Decimal {
@@ -44,6 +48,31 @@ async function tarifaVigente(periodo: Date): Promise<Prisma.Decimal> {
   return tarifa.montoMensual;
 }
 
+/**
+ * Resuelve, para un concepto y unidad dados, el monto y la fuente:
+ * - MANT (ordinaria): usa la tarifa recurrente vigente (con override fijo por unidad).
+ * - Cualquier otro concepto (ej. EXTRA — extraordinaria): usa el monto manual indicado
+ *   por el administrador, igual para todas las unidades (aprobado en asamblea).
+ */
+async function resolverMontos(
+  concepto: { codigo: string },
+  periodo: Date,
+  montoManual: number | undefined,
+  unidades: { baseCalculoCuota: string | null; montoFijoCuota: Prisma.Decimal | null }[],
+): Promise<Prisma.Decimal[]> {
+  if (concepto.codigo === "MANT") {
+    const tarifa = await tarifaVigente(periodo);
+    return unidades.map((u) => montoOrdinarioUnidad(u, tarifa));
+  }
+  if (montoManual == null || montoManual <= 0) {
+    throw new Error(
+      "Indica el monto por unidad para conceptos distintos a la cuota ordinaria.",
+    );
+  }
+  const monto = dec(montoManual);
+  return unidades.map(() => monto);
+}
+
 /** Previsualiza la emisión sin persistir. */
 export async function previsualizarEmision(
   input: EmisionInput,
@@ -54,7 +83,6 @@ export async function previsualizarEmision(
   });
   if (!concepto) throw new Error(`Concepto ${input.conceptoCodigo} no existe`);
 
-  const tarifa = await tarifaVigente(periodo);
   const unidades = await prisma.unidad.findMany({
     where: { activo: true },
     orderBy: { codigo: "asc" },
@@ -65,9 +93,10 @@ export async function previsualizarEmision(
     },
   });
 
-  const detalle = unidades.map((u) => ({
+  const montos = await resolverMontos(concepto, periodo, input.montoManual, unidades);
+  const detalle = unidades.map((u, i) => ({
     unidadCodigo: u.codigo,
-    monto: montoParaUnidad(u, tarifa).toNumber(),
+    monto: montos[i].toNumber(),
   }));
 
   const existente = await prisma.emision.findUnique({
@@ -116,7 +145,6 @@ export async function confirmarEmision(
     );
   }
 
-  const tarifa = await tarifaVigente(periodo);
   const unidades = await prisma.unidad.findMany({
     where: { activo: true },
     select: {
@@ -128,20 +156,18 @@ export async function confirmarEmision(
   });
   if (unidades.length === 0) throw new Error("No hay unidades activas.");
 
-  const cargosData = unidades.map((u) => {
-    const monto = montoParaUnidad(u, tarifa);
-    return {
-      unidadId: u.id,
-      conceptoCobroId: concepto.id,
-      periodo,
-      descripcion: `${concepto.nombre} — ${periodo
-        .toISOString()
-        .slice(0, 7)}`,
-      monto,
-      fechaEmision: new Date(),
-      fechaVencimiento: input.fechaVencimiento,
-    };
-  });
+  const montos = await resolverMontos(concepto, periodo, input.montoManual, unidades);
+  const etiquetaPeriodo = periodo.toISOString().slice(0, 7);
+  const descripcionBase = input.descripcion?.trim() || concepto.nombre;
+  const cargosData = unidades.map((u, i) => ({
+    unidadId: u.id,
+    conceptoCobroId: concepto.id,
+    periodo,
+    descripcion: `${descripcionBase} — ${etiquetaPeriodo}`,
+    monto: montos[i],
+    fechaEmision: new Date(),
+    fechaVencimiento: input.fechaVencimiento,
+  }));
   const total = sum(cargosData.map((c) => c.monto));
 
   const resultado = await prisma.$transaction(async (tx) => {

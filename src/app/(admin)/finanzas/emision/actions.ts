@@ -13,6 +13,8 @@ export async function confirmarEmisionAction(formData: FormData) {
   const periodoStr = String(formData.get("periodo") ?? "");
   const vencStr = String(formData.get("venc") ?? "");
   const concepto = String(formData.get("concepto") ?? "MANT");
+  const montoStr = String(formData.get("monto") ?? "");
+  const descripcion = String(formData.get("descripcion") ?? "");
 
   if (!/^\d{4}-\d{2}$/.test(periodoStr) || !/^\d{4}-\d{2}-\d{2}$/.test(vencStr)) {
     redirect("/finanzas/emision?error=Fechas%20inv%C3%A1lidas");
@@ -20,6 +22,7 @@ export async function confirmarEmisionAction(formData: FormData) {
 
   const periodo = new Date(`${periodoStr}-01T00:00:00Z`);
   const fechaVencimiento = new Date(`${vencStr}T00:00:00Z`);
+  const montoManual = montoStr ? Number(montoStr) : undefined;
 
   let res: EmisionResultado;
   try {
@@ -27,6 +30,8 @@ export async function confirmarEmisionAction(formData: FormData) {
       conceptoCodigo: concepto,
       periodo,
       fechaVencimiento,
+      montoManual,
+      descripcion: descripcion || undefined,
       creadoPorId: user.userId,
     });
   } catch (e) {

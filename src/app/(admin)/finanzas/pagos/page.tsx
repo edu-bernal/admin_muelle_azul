@@ -230,7 +230,18 @@ export default async function PagosPage({
               <td className="px-4 py-3">{p.propietario.nombre}</td>
               <td className="px-4 py-3 text-slate-500">{p.medio}</td>
               <td className="px-4 py-3 text-slate-500">
-                {p.recibo ? `N° ${p.recibo.numero}` : "—"}
+                {p.recibo ? (
+                  <a
+                    href={`/api/recibos/${p.recibo.id}/pdf`}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-brand hover:underline"
+                  >
+                    N° {p.recibo.numero} · PDF
+                  </a>
+                ) : (
+                  "—"
+                )}
               </td>
               <td className="px-4 py-3 text-right font-medium">
                 {formatPEN(p.monto)}

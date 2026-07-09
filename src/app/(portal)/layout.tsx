@@ -39,6 +39,7 @@ export default async function PortalLayout({
         <nav className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-2 pb-2">
           <NavLink href="/portal" icon="📄" exact>Mi cuenta</NavLink>
           <NavLink href="/portal/pagar" icon="💳">Pagar</NavLink>
+          <NavLink href="/portal/recibos" icon="🧾">Mis recibos</NavLink>
           <NavLink href="/portal/comunicados" icon="📣">Comunicados</NavLink>
           <NavLink href="/portal/reservas" icon="🏖️">Reservas</NavLink>
           <NavLink href="/portal/incidencias" icon="🛠️">Incidencias</NavLink>

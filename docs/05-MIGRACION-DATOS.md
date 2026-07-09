@@ -1,6 +1,6 @@
 # Migración de Datos — Carpeta `Tablas/`
 
-**Versión:** 1.1 · **Fecha:** 05/07/2026
+**Versión:** 1.2 · **Fecha:** 09/07/2026
 
 Análisis de los archivos Excel reales de la administración (carpeta `Tablas/`) y plan de migración hacia el modelo de datos del sistema. Este documento **reemplaza y detalla** la sección 9 del [Modelo de Datos](03-MODELO-DE-DATOS.md).
 
@@ -8,31 +8,43 @@ Análisis de los archivos Excel reales de la administración (carpeta `Tablas/`)
 
 | Etapa | Estado |
 |---|---|
-| **Padrón (propietarios + unidades + titularidad)** | ✅ **Cargado en producción** (05/07/2026) vía `prisma/import/import-maestro-entes.ts`, desde `Maestro ENTES.xlsx`. Resultado: 424 unidades (MA_C 217, MA_A 149, MA_O 31, MA_N 27), 556 propietarios únicos, 633 titularidades, 9 unidades sin propietario registrado en el Excel (pendientes de saneamiento) |
-| Cargos históricos (2021→corte) | Pendiente — requiere confirmar la tabla de tarifas por año (pregunta abierta §6) |
+| **Padrón (propietarios + unidades + titularidad)** | ✅ **Cargado en producción** (09/07/2026) vía `prisma/import/import-padron.ts`, desde `PADRON.xlsx` — fuente canónica actual (reemplaza la carga inicial del 05/07 hecha desde `Maestro ENTES.xlsx`). Resultado: **425 unidades** (MA_C 217, MA_A 150, MA_O 31, MA_N 27), **557 propietarios únicos**, 634 titularidades, 9 unidades sin propietario real (placeholders detectados y descartados — ver abajo) |
+| Cargos históricos (2021→corte) | Pendiente — requiere confirmar la tabla de tarifas por año (pregunta abierta §6). El usuario preparará un archivo nuevo con montos exactos por propietario y tarifas |
 | Pagos históricos + recibos | Pendiente — depende de los cargos históricos |
 | Egresos 2026 + proveedores | Pendiente |
 | Vigilancia por unidad | Pendiente |
 
+### Fuente canónica: `PADRON.xlsx`
+
+`PADRON.xlsx` (hoja única "Padron ordenado", 425 filas × 13 columnas) es un archivo limpio y dedicado al padrón — sin la matriz histórica de 100 columnas de `PADRON DEL CONDOMINIO 2026.xlsx` ni las filas de administrador/proveedor de `Maestro ENTES.xlsx`. Columnas: `Num, SECTOR, MANZANA, LOTE, M&L, PROPIETARIO 1, PROPIETARIO 2, CORREO 1, TELEFONO 1, CORREO 2, TELEFONO 2, Envio`.
+
+Diferencias de formato frente a `Maestro ENTES.xlsx` que el script maneja:
+- **Sector sin guión bajo**: `MAC`/`MAA`/`MAO`/`MAN` en vez de `MA_C`/`MA_A`/`MA_O`/`MA_N` → se mapean al código canónico.
+- **Manzana y lote ya separados** en columnas propias (no hay que partir `M&L` por `_`).
+- **Placeholders de "sin propietario"**: en las 9 unidades de MA_N sin dueño real, la columna PROPIETARIO 1 contiene literalmente el texto `"MA_N B_7"`, `"MA_N C_2"`, etc. (el código de la unidad reformateado) en vez de estar vacía — el script detecta este patrón exacto (`propietario == "{sector} {M&L}"`) y lo trata como sin propietario, no como un nombre real.
+- **Canal de envío**: solo se marca `WHATSAPP` con coincidencia exacta (case-insensitive) de la palabra "whatsapp"; valores como `"Pendiente no tiene whatsApp"` quedan correctamente en `CORREO` (antes un regex más laxo los habría marcado mal).
+
 ### Cómo se ejecutó la carga del padrón
 
 ```bash
-# 1. Exportar la hoja "Padron ordenado" de Maestro ENTES.xlsx a CSV (separador ;)
+# 1. Exportar la hoja "Padron ordenado" de PADRON.xlsx a CSV (separador ;)
 # 2. Dry-run (solo reporta, no escribe nada):
-tsx prisma/import/import-maestro-entes.ts <ruta-csv>
-# 3. Aplicar (borra los datos demo de Propietario/Unidad/Titularidad/Cargo/Pago
-#    preexistentes y carga el padrón real):
-tsx prisma/import/import-maestro-entes.ts <ruta-csv> --apply
+tsx prisma/import/import-padron.ts <ruta-csv>
+# 3. Aplicar (borra Propietario/Unidad/Titularidad/Cargo/Pago preexistentes
+#    y carga el padrón real):
+tsx prisma/import/import-padron.ts <ruta-csv> --apply
 ```
 
-El script (en `prisma/import/import-maestro-entes.ts`, versionado en el repo — **sin datos reales**, el CSV nunca se commitea) hace lo siguiente:
+El script (`prisma/import/import-padron.ts`, versionado en el repo — **sin datos reales**, el CSV nunca se commitea) hace lo siguiente:
 - Parsea el CSV con un parser consciente de comillas y saltos de línea embebidos.
-- Toma solo filas `TIPO ENTE = PROP` (excluye administrador y proveedor del maestro).
-- Construye `codigo = SECTOR-M&L` y separa manzana/lote por el primer `_`.
+- Mapea el sector y construye `codigo = SECTOR-M&L` usando manzana/lote directamente de sus columnas.
+- Detecta y descarta los placeholders "sin propietario" (ver arriba).
 - Determina el titular: propietario 1 si existe; si no, propietario 2. Si ambos existen, crea dos `PropiedadTitularidad` (50%/50%, responsable de pago = propietario 1).
 - Deduplica propietarios por nombre normalizado (mismo dueño en varios lotes → un solo registro).
-- Marca `TERRENO` las unidades confirmadas en la hoja Seguridad (A-23, J-2, J-1); el resto queda `CASA` (valor por defecto).
-- Limpia los correos/teléfonos múltiples separados por `;`, `,` o `/`.
+- Marca `TERRENO` las unidades confirmadas en la hoja Seguridad de `PADRON DEL CONDOMINIO 2026.xlsx` (A-23, J-2, J-1); el resto queda `CASA` (valor por defecto).
+- Combina y deduplica correo/teléfono de las columnas 1 y 2, guardando el primero como principal y el segundo como secundario (`emailSecundario`/`telefonoSecundario`).
+
+`prisma/import/import-maestro-entes.ts` se conserva en el repo por referencia histórica, pero ya no es la fuente activa.
 
 ---
 

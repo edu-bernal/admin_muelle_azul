@@ -15,6 +15,7 @@ import {
   confirmarPagoAction,
   rechazarPagoAction,
   anularPagoAction,
+  eliminarPagoAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -208,6 +209,21 @@ export default async function PagosPage({
                     >
                       Editar
                     </Link>
+                    <form action={eliminarPagoAction} className="flex gap-1">
+                      <input type="hidden" name="pagoId" value={p.id} />
+                      <input
+                        name="motivo"
+                        placeholder="Motivo de eliminación"
+                        required
+                        className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-white hover:bg-slate-900"
+                      >
+                        Eliminar
+                      </button>
+                    </form>
                   </div>
                 </div>
               ))}
@@ -262,33 +278,48 @@ export default async function PagosPage({
                 )}
               </td>
               <td className="px-4 py-3">
-                {p.estado === "CONFIRMADO" ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/finanzas/pagos/${p.id}/editar`}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                    >
-                      Editar
-                    </Link>
-                    <form action={anularPagoAction} className="flex gap-1">
-                      <input type="hidden" name="pagoId" value={p.id} />
-                      <input
-                        name="motivo"
-                        placeholder="Motivo de anulación"
-                        required
-                        className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                <div className="flex flex-wrap items-center gap-2">
+                  {p.estado === "CONFIRMADO" && (
+                    <>
+                      <Link
+                        href={`/finanzas/pagos/${p.id}/editar`}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
                       >
-                        Anular
-                      </button>
-                    </form>
-                  </div>
-                ) : (
-                  <span className="text-xs text-slate-400">—</span>
-                )}
+                        Editar
+                      </Link>
+                      <form action={anularPagoAction} className="flex gap-1">
+                        <input type="hidden" name="pagoId" value={p.id} />
+                        <input
+                          name="motivo"
+                          placeholder="Motivo de anulación"
+                          required
+                          className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                        >
+                          Anular
+                        </button>
+                      </form>
+                    </>
+                  )}
+                  <form action={eliminarPagoAction} className="flex gap-1">
+                    <input type="hidden" name="pagoId" value={p.id} />
+                    <input
+                      name="motivo"
+                      placeholder="Motivo de eliminación"
+                      required
+                      className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-white hover:bg-slate-900"
+                    >
+                      Eliminar
+                    </button>
+                  </form>
+                </div>
               </td>
             </tr>
           ))}

@@ -9,6 +9,7 @@ import {
   rechazarPago,
   anularPago,
   editarPago,
+  eliminarPago,
   type PagoResultado,
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
@@ -136,4 +137,21 @@ export async function editarPagoAction(formData: FormData) {
   }
   revalidatePath("/finanzas/pagos");
   redirect("/finanzas/pagos?ok=editado");
+}
+
+export async function eliminarPagoAction(formData: FormData) {
+  const user = await requirePermission("finanzas.pagos.validar");
+  const pagoId = String(formData.get("pagoId") ?? "");
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
+  if (!motivo) redirect("/finanzas/pagos?error=Indica%20el%20motivo%20de%20la%20eliminaci%C3%B3n");
+
+  try {
+    await eliminarPago(pagoId, motivo, user.userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error";
+    redirect(`/finanzas/pagos?error=${encodeURIComponent(msg)}`);
+  }
+  revalidatePath("/finanzas/pagos");
+  redirect("/finanzas/pagos?ok=eliminado");
 }

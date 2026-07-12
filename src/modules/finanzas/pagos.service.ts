@@ -444,3 +444,90 @@ export async function editarPago(
     datosDespues: { medio: input.medio, monto: input.monto },
   });
 }
+
+/**
+ * Elimina un pago por completo (borrado físico) — a diferencia de
+ * `anularPago`, que conserva el registro marcado como ANULADO para el
+ * rastro contable, esta acción es para corregir un error de captura (pago
+ * duplicado, propietario equivocado, prueba). Si el pago estaba CONFIRMADO,
+ * primero revierte su efecto sobre los cargos afectados (recalcula su
+ * estado según lo que quede aplicado) y descuenta el saldo a favor que
+ * hubiera generado — igual que `anularPago` — y también borra su recibo de
+ * caja si existía. Queda una entrada de auditoría con los datos del pago
+ * eliminado, ya que la fila en sí desaparece.
+ */
+export async function eliminarPago(
+  pagoId: string,
+  motivo: string,
+  usuarioId?: string | null,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const pago = await tx.pago.findUnique({
+      where: { id: pagoId },
+      include: { aplicaciones: true, recibo: true },
+    });
+    if (!pago) throw new Error("Pago no encontrado");
+
+    if (pago.estado === "CONFIRMADO") {
+      for (const ap of pago.aplicaciones) {
+        const cargo = await tx.cargo.findUnique({
+          where: { id: ap.cargoId },
+          include: { aplicaciones: true },
+        });
+        if (!cargo || cargo.estado === "ANULADO") continue;
+
+        const restante = cargo.aplicaciones
+          .filter((a) => a.id !== ap.id)
+          .reduce((acc, a) => acc.plus(a.montoAplicado), ZERO);
+        const montoCargo = new Prisma.Decimal(cargo.monto);
+        const nuevoEstado = restante.lte(ZERO)
+          ? "PENDIENTE"
+          : restante.gte(montoCargo)
+            ? "PAGADO"
+            : "PARCIAL";
+        await tx.cargo.update({ where: { id: cargo.id }, data: { estado: nuevoEstado } });
+      }
+
+      const movimientos = await tx.saldoFavorMovimiento.findMany({ where: { pagoId } });
+      for (const mov of movimientos) {
+        if (mov.signo === 1) {
+          const saldo = await tx.saldoFavor.findUnique({
+            where: { propietarioId: pago.propietarioId },
+          });
+          if (saldo) {
+            const nuevoMonto = new Prisma.Decimal(saldo.montoDisponible).minus(mov.monto);
+            await tx.saldoFavor.update({
+              where: { id: saldo.id },
+              data: { montoDisponible: nuevoMonto.lte(ZERO) ? ZERO : nuevoMonto },
+            });
+          }
+        }
+      }
+    }
+
+    await audit(
+      {
+        usuarioId,
+        accion: "ELIMINAR_PAGO",
+        entidad: "Pago",
+        entidadId: pagoId,
+        datosAntes: {
+          propietarioId: pago.propietarioId,
+          monto: pago.monto.toString(),
+          medio: pago.medio,
+          estado: pago.estado,
+          fechaPago: pago.fechaPago.toISOString(),
+        },
+        datosDespues: { motivo },
+      },
+      tx,
+    );
+
+    await tx.saldoFavorMovimiento.deleteMany({ where: { pagoId } });
+    await tx.aplicacionPago.deleteMany({ where: { pagoId } });
+    if (pago.recibo) {
+      await tx.reciboCaja.delete({ where: { id: pago.recibo.id } });
+    }
+    await tx.pago.delete({ where: { id: pagoId } });
+  });
+}

@@ -1,6 +1,6 @@
 # Migración de Datos — Carpeta `Tablas/`
 
-**Versión:** 1.2 · **Fecha:** 09/07/2026
+**Versión:** 1.3 · **Fecha:** 12/07/2026
 
 Análisis de los archivos Excel reales de la administración (carpeta `Tablas/`) y plan de migración hacia el modelo de datos del sistema. Este documento **reemplaza y detalla** la sección 9 del [Modelo de Datos](03-MODELO-DE-DATOS.md).
 
@@ -9,10 +9,22 @@ Análisis de los archivos Excel reales de la administración (carpeta `Tablas/`)
 | Etapa | Estado |
 |---|---|
 | **Padrón (propietarios + unidades + titularidad)** | ✅ **Cargado en producción** (09/07/2026) vía `prisma/import/import-padron.ts`, desde `PADRON.xlsx` — fuente canónica actual (reemplaza la carga inicial del 05/07 hecha desde `Maestro ENTES.xlsx`). Resultado: **425 unidades** (MA_C 217, MA_A 150, MA_O 31, MA_N 27), **557 propietarios únicos**, 634 titularidades, 9 unidades sin propietario real (placeholders detectados y descartados — ver abajo) |
-| Cargos históricos (2021→corte) | Pendiente — requiere confirmar la tabla de tarifas por año (pregunta abierta §6). El usuario preparará un archivo nuevo con montos exactos por propietario y tarifas |
-| Pagos históricos + recibos | Pendiente — depende de los cargos históricos |
+| **Cargos ordinarios 2021** | ✅ **Emitidos en producción** (vía la pantalla Emisión de cuotas, 9 emisiones MANT 2021-04 a 2021-12, 425 cargos c/u = 3825 cargos, S/100/unidad) |
+| **Pagos ordinarios 2021** | ✅ **Cargados en producción** (12/07/2026) vía `prisma/import/import-pagos-2021-ordinaria.ts`, desde `Tablas/PAGOS2021.xlsx` hoja "ORDINARIA". Resultado: 543 pagos aplicados (S/54,200 exacto), 541 cargos PAGADO + 2 PARCIAL (S/50 c/u), 3282 cargos aún PENDIENTE. Sin recibos generados (ver nota abajo) |
+| Cargos/pagos extraordinarios | Pendiente — existe hoja `EXTRAORDINARIA` en el mismo archivo (115 filas), no procesada aún |
+| Cargos/pagos 2022 en adelante | Pendiente — requiere confirmar tarifa vigente por año (pregunta abierta §6) |
 | Egresos 2026 + proveedores | Pendiente |
 | Vigilancia por unidad | Pendiente |
+
+### Pagos ordinarios 2021 (`PAGOS2021.xlsx`, hoja `ORDINARIA`)
+
+Columnas: `Num, SECTOR, MANZANA, LOTE, M&L, PROPIETARIO 1, Pago, FECHA PAGO`. Cada fila es un pago de cuota **ordinaria** de un mes específico: `FECHA PAGO` es siempre el último día de un mes (30/04, 31/05, ..., 31/12 de 2021) — es un marcador de período, no la fecha exacta en que se recibió el dinero.
+
+Diseño de la importación (`prisma/import/import-pagos-2021-ordinaria.ts`):
+- **Aplicación directa, no FIFO**: como se sabe con certeza qué mes cubre cada pago, se busca y aplica exactamente al cargo MANT de esa unidad + ese período (no al cargo pendiente más antiguo). Esto es distinto del registro de pagos en vivo, que sí usa FIFO porque ahí la intención no es explícita.
+- **Sin recibo (`ReciboCaja`)**: son pagos históricos migrados (`medio = MIGRACION`) que en su momento ya tuvieron su propio comprobante físico de 2021 (no capturado en este archivo). Generarles un número de la secuencia correlativa real (que continúa desde 799 para los recibos emitidos en vivo por la app) sería incorrecto — consumiría/desordenaría la numeración pensada para recibos nuevos.
+- **Propietario del pago**: se toma el responsable de pago **ya registrado en el sistema** para esa unidad (vía `PropiedadTitularidad`), no el nombre de la columna `PROPIETARIO 1` de esta hoja (que es solo referencial/de corte).
+- Validación previa: 543/543 filas válidas (unidad existe, tiene responsable, cargo del período existe y no estaba ya pagado). 2 pagos parciales de S/50 detectados y aplicados como tal (cargo queda en estado `PARCIAL`).
 
 ### Fuente canónica: `PADRON.xlsx`
 

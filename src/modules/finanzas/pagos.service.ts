@@ -312,3 +312,135 @@ export async function rechazarPago(
     datosDespues: { estado: "RECHAZADO", motivo },
   });
 }
+
+/**
+ * Anula un pago CONFIRMADO: revierte el efecto de sus aplicaciones sobre los
+ * cargos (recalculando su estado según lo que quede aplicado) y descuenta el
+ * saldo a favor que ese pago haya generado. Nunca se borra físicamente — el
+ * pago queda en estado ANULADO con motivo y auditoría (mismo patrón que la
+ * anulación de cargos).
+ */
+export async function anularPago(
+  pagoId: string,
+  motivo: string,
+  usuarioId?: string | null,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const pago = await tx.pago.findUnique({
+      where: { id: pagoId },
+      include: { aplicaciones: true },
+    });
+    if (!pago) throw new Error("Pago no encontrado");
+    if (pago.estado !== "CONFIRMADO") {
+      throw new Error(
+        "Solo se pueden anular pagos confirmados (los pagos por validar se rechazan)",
+      );
+    }
+
+    for (const ap of pago.aplicaciones) {
+      const cargo = await tx.cargo.findUnique({
+        where: { id: ap.cargoId },
+        include: { aplicaciones: true },
+      });
+      if (!cargo || cargo.estado === "ANULADO") continue;
+
+      const restante = cargo.aplicaciones
+        .filter((a) => a.id !== ap.id)
+        .reduce((acc, a) => acc.plus(a.montoAplicado), ZERO);
+      const montoCargo = new Prisma.Decimal(cargo.monto);
+      const nuevoEstado = restante.lte(ZERO)
+        ? "PENDIENTE"
+        : restante.gte(montoCargo)
+          ? "PAGADO"
+          : "PARCIAL";
+      await tx.cargo.update({ where: { id: cargo.id }, data: { estado: nuevoEstado } });
+    }
+    await tx.aplicacionPago.deleteMany({ where: { pagoId } });
+
+    // Revierte el saldo a favor generado por este pago (si aún no fue consumido).
+    const movimientos = await tx.saldoFavorMovimiento.findMany({ where: { pagoId } });
+    for (const mov of movimientos) {
+      if (mov.signo === 1) {
+        const saldo = await tx.saldoFavor.findUnique({
+          where: { propietarioId: pago.propietarioId },
+        });
+        if (saldo) {
+          const nuevoMonto = new Prisma.Decimal(saldo.montoDisponible).minus(mov.monto);
+          await tx.saldoFavor.update({
+            where: { id: saldo.id },
+            data: { montoDisponible: nuevoMonto.lte(ZERO) ? ZERO : nuevoMonto },
+          });
+        }
+      }
+    }
+    await tx.saldoFavorMovimiento.deleteMany({ where: { pagoId } });
+
+    await tx.pago.update({
+      where: { id: pagoId },
+      data: {
+        estado: "ANULADO",
+        anuladoPorId: usuarioId ?? null,
+        anuladoMotivo: motivo,
+        anuladoAt: new Date(),
+      },
+    });
+
+    await audit(
+      {
+        usuarioId,
+        accion: "ANULAR_PAGO",
+        entidad: "Pago",
+        entidadId: pagoId,
+        datosAntes: { estado: "CONFIRMADO" },
+        datosDespues: { estado: "ANULADO", motivo },
+      },
+      tx,
+    );
+  });
+}
+
+export interface EditarPagoInput {
+  medio: MedioPago;
+  banco?: string | null;
+  numeroOperacion?: string | null;
+  fechaPago: Date;
+  /** Solo se aplica si el pago aún está POR_VALIDAR (nada se ha aplicado todavía). */
+  monto?: number;
+}
+
+/**
+ * Edita los datos de un pago. El monto solo es editable mientras el pago
+ * esté POR_VALIDAR (no se ha aplicado a ningún cargo todavía); una vez
+ * CONFIRMADO, para corregir el monto hay que anular el pago y registrar uno
+ * nuevo — igual que un cargo emitido nunca se edita, se anula y se re-emite.
+ */
+export async function editarPago(
+  pagoId: string,
+  input: EditarPagoInput,
+  usuarioId?: string | null,
+): Promise<void> {
+  const pago = await prisma.pago.findUnique({ where: { id: pagoId } });
+  if (!pago) throw new Error("Pago no encontrado");
+  if (pago.estado === "ANULADO" || pago.estado === "RECHAZADO") {
+    throw new Error("No se puede editar un pago anulado o rechazado");
+  }
+
+  const data: Prisma.PagoUpdateInput = {
+    medio: input.medio,
+    banco: input.banco ?? null,
+    numeroOperacion: input.numeroOperacion ?? null,
+    fechaPago: input.fechaPago,
+  };
+  if (pago.estado === "POR_VALIDAR" && input.monto != null && input.monto > 0) {
+    data.monto = dec(input.monto);
+  }
+
+  await prisma.pago.update({ where: { id: pagoId }, data });
+  await audit({
+    usuarioId,
+    accion: "EDITAR_PAGO",
+    entidad: "Pago",
+    entidadId: pagoId,
+    datosDespues: { medio: input.medio, monto: input.monto },
+  });
+}

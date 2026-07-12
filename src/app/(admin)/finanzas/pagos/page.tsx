@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatPEN } from "@/lib/money";
 import {
@@ -13,6 +14,7 @@ import {
   registrarPagoAction,
   confirmarPagoAction,
   rechazarPagoAction,
+  anularPagoAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +37,10 @@ export default async function PagosPage({
       orderBy: { createdAt: "asc" },
     }),
     prisma.pago.findMany({
-      where: { estado: "CONFIRMADO" },
+      where: { estado: { in: ["CONFIRMADO", "ANULADO"] } },
       include: { propietario: { select: { nombre: true } }, recibo: true },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 15,
     }),
   ]);
 
@@ -176,7 +178,7 @@ export default async function PagosPage({
                     {p.medio} · {p.fechaPago.toISOString().slice(0, 10)}
                     {p.numeroOperacion ? ` · Op. ${p.numeroOperacion}` : ""}
                   </p>
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <form action={confirmarPagoAction}>
                       <input type="hidden" name="pagoId" value={p.id} />
                       <button
@@ -200,6 +202,12 @@ export default async function PagosPage({
                         Rechazar
                       </button>
                     </form>
+                    <Link
+                      href={`/finanzas/pagos/${p.id}/editar`}
+                      className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                    >
+                      Editar
+                    </Link>
                   </div>
                 </div>
               ))}
@@ -221,6 +229,7 @@ export default async function PagosPage({
               <th className="px-4 py-3">Recibo</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Acción</th>
             </tr>
           }
         >
@@ -248,12 +257,44 @@ export default async function PagosPage({
               </td>
               <td className="px-4 py-3">
                 <Badge>{p.estado}</Badge>
+                {p.estado === "ANULADO" && p.anuladoMotivo && (
+                  <p className="mt-1 text-xs text-slate-400">{p.anuladoMotivo}</p>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                {p.estado === "CONFIRMADO" ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/finanzas/pagos/${p.id}/editar`}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                    >
+                      Editar
+                    </Link>
+                    <form action={anularPagoAction} className="flex gap-1">
+                      <input type="hidden" name="pagoId" value={p.id} />
+                      <input
+                        name="motivo"
+                        placeholder="Motivo de anulación"
+                        required
+                        className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                      >
+                        Anular
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">—</span>
+                )}
               </td>
             </tr>
           ))}
           {recientes.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                 Sin pagos registrados.
               </td>
             </tr>

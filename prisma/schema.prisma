@@ -420,6 +420,9 @@ model Pago {
   validadoPorId    String?
   validadoAt       DateTime?
   rechazoMotivo    String?
+  anuladoPorId     String?
+  anuladoMotivo    String?
+  anuladoAt        DateTime?
   aplicaciones     AplicacionPago[]
   recibo           ReciboCaja?
   createdAt        DateTime     @default(now())

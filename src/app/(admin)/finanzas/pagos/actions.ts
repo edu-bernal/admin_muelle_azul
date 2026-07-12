@@ -7,6 +7,8 @@ import {
   registrarPagoAdmin,
   confirmarPago,
   rechazarPago,
+  anularPago,
+  editarPago,
   type PagoResultado,
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
@@ -85,4 +87,53 @@ export async function rechazarPagoAction(formData: FormData) {
   }
   revalidatePath("/finanzas/pagos");
   redirect("/finanzas/pagos?ok=rechazado");
+}
+
+export async function anularPagoAction(formData: FormData) {
+  const user = await requirePermission("finanzas.pagos.validar");
+  const pagoId = String(formData.get("pagoId") ?? "");
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
+  if (!motivo) redirect("/finanzas/pagos?error=Indica%20el%20motivo%20de%20la%20anulaci%C3%B3n");
+
+  try {
+    await anularPago(pagoId, motivo, user.userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error";
+    redirect(`/finanzas/pagos?error=${encodeURIComponent(msg)}`);
+  }
+  revalidatePath("/finanzas/pagos");
+  redirect("/finanzas/pagos?ok=anulado");
+}
+
+export async function editarPagoAction(formData: FormData) {
+  const user = await requirePermission("finanzas.pagos.registrar");
+  const pagoId = String(formData.get("pagoId") ?? "");
+  const fechaStr = String(formData.get("fecha") ?? "");
+  const medio = String(formData.get("medio") ?? "");
+  const montoStr = String(formData.get("monto") ?? "");
+
+  if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
+  if (!fechaStr || !MEDIOS.includes(medio)) {
+    redirect(`/finanzas/pagos/${pagoId}/editar?error=Datos%20incompletos`);
+  }
+
+  try {
+    await editarPago(
+      pagoId,
+      {
+        medio: medio as MedioPago,
+        banco: (formData.get("banco") as string) || null,
+        numeroOperacion: (formData.get("numeroOperacion") as string) || null,
+        fechaPago: new Date(`${fechaStr}T00:00:00Z`),
+        monto: montoStr ? Number(montoStr) : undefined,
+      },
+      user.userId,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error";
+    redirect(`/finanzas/pagos/${pagoId}/editar?error=${encodeURIComponent(msg)}`);
+  }
+  revalidatePath("/finanzas/pagos");
+  redirect("/finanzas/pagos?ok=editado");
 }

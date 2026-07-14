@@ -10,6 +10,7 @@ import {
   labelClass,
   buttonClass,
 } from "@/components/ui";
+import { PropietarioCombobox } from "@/components/propietario-combobox";
 import {
   registrarPagoAction,
   confirmarPagoAction,
@@ -17,33 +18,88 @@ import {
   anularPagoAction,
   eliminarPagoAction,
 } from "./actions";
+import type { EstadoPago, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+const ESTADOS_HISTORIAL: EstadoPago[] = [
+  "POR_VALIDAR",
+  "CONFIRMADO",
+  "RECHAZADO",
+  "ANULADO",
+];
+const HISTORIAL_TAKE = 300;
 
 export default async function PagosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string; aplicado?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    aplicado?: string;
+    q?: string;
+    estado?: string;
+  }>;
 }) {
   const sp = await searchParams;
-  const [propietarios, porValidar, recientes] = await Promise.all([
-    prisma.propietario.findMany({
-      where: { activo: true, titularidades: { some: { fechaFin: null } } },
-      orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true },
-    }),
-    prisma.pago.findMany({
-      where: { estado: "POR_VALIDAR" },
-      include: { propietario: { select: { nombre: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.pago.findMany({
-      where: { estado: { in: ["CONFIRMADO", "ANULADO"] } },
-      include: { propietario: { select: { nombre: true } }, recibo: true },
-      orderBy: { createdAt: "desc" },
-      take: 15,
-    }),
-  ]);
+  const q = (sp.q ?? "").trim();
+  const estadoFiltro = ESTADOS_HISTORIAL.includes(sp.estado as EstadoPago)
+    ? (sp.estado as EstadoPago)
+    : undefined;
+
+  const historialWhere: Prisma.PagoWhereInput = {
+    ...(estadoFiltro ? { estado: estadoFiltro } : {}),
+    ...(q
+      ? {
+          OR: [
+            { propietario: { nombre: { contains: q, mode: "insensitive" } } },
+            {
+              aplicaciones: {
+                some: {
+                  cargo: {
+                    unidad: { codigo: { contains: q, mode: "insensitive" } },
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const [propietariosRaw, porValidar, recientes, totalHistorial] =
+    await Promise.all([
+      prisma.propietario.findMany({
+        where: { activo: true, titularidades: { some: { fechaFin: null } } },
+        orderBy: { nombre: "asc" },
+        select: {
+          id: true,
+          nombre: true,
+          titularidades: {
+            where: { fechaFin: null },
+            select: { unidad: { select: { codigo: true } } },
+          },
+        },
+      }),
+      prisma.pago.findMany({
+        where: { estado: "POR_VALIDAR" },
+        include: { propietario: { select: { nombre: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.pago.findMany({
+        where: historialWhere,
+        include: { propietario: { select: { nombre: true } }, recibo: true },
+        orderBy: { createdAt: "desc" },
+        take: HISTORIAL_TAKE,
+      }),
+      prisma.pago.count({ where: historialWhere }),
+    ]);
+
+  const propietarios = propietariosRaw.map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+    unidades: p.titularidades.map((t) => t.unidad.codigo),
+  }));
 
   const hoy = new Date().toISOString().slice(0, 10);
 
@@ -74,24 +130,7 @@ export default async function PagosPage({
             Registrar pago
           </h2>
           <form action={registrarPagoAction} className="space-y-3">
-            <div>
-              <label className={labelClass} htmlFor="propietarioId">
-                Propietario
-              </label>
-              <select
-                id="propietarioId"
-                name="propietarioId"
-                required
-                className={inputClass}
-              >
-                <option value="">Selecciona…</option>
-                {propietarios.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <PropietarioCombobox propietarios={propietarios} />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass} htmlFor="monto">
@@ -233,9 +272,59 @@ export default async function PagosPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">
-          Pagos recientes
-        </h2>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Historial de pagos ({totalHistorial})
+          </h2>
+          <form className="flex flex-wrap items-end gap-2" method="get">
+            <div>
+              <label className={labelClass} htmlFor="q">
+                Buscar
+              </label>
+              <input
+                id="q"
+                name="q"
+                defaultValue={q}
+                placeholder="Nombre, apellido o propiedad"
+                className={`${inputClass} w-64`}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="estado">
+                Estado
+              </label>
+              <select
+                id="estado"
+                name="estado"
+                defaultValue={estadoFiltro ?? "TODOS"}
+                className={inputClass}
+              >
+                <option value="TODOS">Todos</option>
+                <option value="CONFIRMADO">Confirmado</option>
+                <option value="POR_VALIDAR">Por validar</option>
+                <option value="RECHAZADO">Rechazado</option>
+                <option value="ANULADO">Anulado</option>
+              </select>
+            </div>
+            <button type="submit" className={buttonClass("ghost")}>
+              Filtrar
+            </button>
+            {(q || estadoFiltro) && (
+              <Link
+                href="/finanzas/pagos"
+                className="text-xs text-slate-400 hover:underline"
+              >
+                Limpiar
+              </Link>
+            )}
+          </form>
+        </div>
+        {totalHistorial > HISTORIAL_TAKE && (
+          <p className="mb-2 text-xs text-slate-400">
+            Mostrando los {HISTORIAL_TAKE} pagos más recientes de{" "}
+            {totalHistorial}. Usa el buscador para acotar resultados.
+          </p>
+        )}
         <Table
           head={
             <tr>
@@ -326,7 +415,9 @@ export default async function PagosPage({
           {recientes.length === 0 && (
             <tr>
               <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                Sin pagos registrados.
+                {q || estadoFiltro
+                  ? "Sin pagos que coincidan con la búsqueda."
+                  : "Sin pagos registrados."}
               </td>
             </tr>
           )}

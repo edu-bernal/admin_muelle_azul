@@ -9,17 +9,26 @@ export type PropietarioOption = {
   unidades: string[];
 };
 
+function etiqueta(p: PropietarioOption) {
+  return p.nombre + (p.unidades.length ? ` — ${p.unidades.join(", ")}` : "");
+}
+
 export function PropietarioCombobox({
   propietarios,
   name = "propietarioId",
   label = "Propietario",
+  defaultSelectedId = "",
 }: {
   propietarios: PropietarioOption[];
   name?: string;
   label?: string;
+  defaultSelectedId?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState("");
+  const inicial = defaultSelectedId
+    ? propietarios.find((p) => p.id === defaultSelectedId)
+    : undefined;
+  const [query, setQuery] = useState(inicial ? etiqueta(inicial) : "");
+  const [selectedId, setSelectedId] = useState(inicial?.id ?? "");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -51,17 +60,19 @@ export function PropietarioCombobox({
 
   function selectPropietario(p: PropietarioOption) {
     setSelectedId(p.id);
-    setQuery(p.nombre + (p.unidades.length ? ` — ${p.unidades.join(", ")}` : ""));
+    setQuery(etiqueta(p));
     setOpen(false);
   }
 
+  const inputId = `${name}-buscador`;
+
   return (
     <div ref={containerRef} className="relative">
-      <label className={labelClass} htmlFor="propietario-buscador">
+      <label className={labelClass} htmlFor={inputId}>
         {label}
       </label>
       <input
-        id="propietario-buscador"
+        id={inputId}
         type="text"
         autoComplete="off"
         required

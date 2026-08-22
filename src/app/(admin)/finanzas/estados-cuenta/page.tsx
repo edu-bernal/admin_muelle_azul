@@ -1,12 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { estadoCuentaPropietario } from "@/modules/finanzas/estado-cuenta.service";
-import {
-  PageHeader,
-  Card,
-  inputClass,
-  labelClass,
-  buttonClass,
-} from "@/components/ui";
+import { PageHeader, Card, buttonClass } from "@/components/ui";
+import { PropietarioCombobox } from "@/components/propietario-combobox";
 import { EstadoCuentaView } from "@/components/estado-cuenta-view";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +12,24 @@ export default async function EstadosCuentaPage({
   searchParams: Promise<{ propietarioId?: string }>;
 }) {
   const sp = await searchParams;
-  const propietarios = await prisma.propietario.findMany({
+  const propietariosRaw = await prisma.propietario.findMany({
     where: { activo: true, titularidades: { some: { fechaFin: null } } },
     orderBy: { nombre: "asc" },
-    select: { id: true, nombre: true },
+    select: {
+      id: true,
+      nombre: true,
+      titularidades: {
+        where: { fechaFin: null },
+        select: { unidad: { select: { codigo: true } } },
+      },
+    },
   });
+
+  const propietarios = propietariosRaw.map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+    unidades: p.titularidades.map((t) => t.unidad.codigo),
+  }));
 
   const ec = sp.propietarioId
     ? await estadoCuentaPropietario(sp.propietarioId).catch(() => null)
@@ -37,22 +45,10 @@ export default async function EstadosCuentaPage({
       <Card className="mb-6">
         <form method="get" className="flex flex-wrap items-end gap-4">
           <div className="min-w-64 flex-1">
-            <label className={labelClass} htmlFor="propietarioId">
-              Propietario
-            </label>
-            <select
-              id="propietarioId"
-              name="propietarioId"
-              defaultValue={sp.propietarioId}
-              className={inputClass}
-            >
-              <option value="">Selecciona…</option>
-              {propietarios.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
+            <PropietarioCombobox
+              propietarios={propietarios}
+              defaultSelectedId={sp.propietarioId ?? ""}
+            />
           </div>
           <button type="submit" className={buttonClass("ghost")}>
             Ver estado

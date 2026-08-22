@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/app/login/actions";
 import { NavLink } from "@/components/nav";
+import { Logo } from "@/components/logo";
 
 export default async function PortalLayout({
   children,
@@ -14,9 +15,7 @@ export default async function PortalLayout({
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-lg">
-              🌊
-            </span>
+            <Logo size={36} />
             <div>
               <p className="text-sm font-semibold text-slate-900">Muelle Azul</p>
               <p className="text-xs text-slate-400">Portal del propietario</p>

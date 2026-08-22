@@ -1,5 +1,6 @@
 import { requireAdmin, can } from "@/lib/auth";
 import { NavLink } from "@/components/nav";
+import { Logo } from "@/components/logo";
 import { logoutAction } from "@/app/login/actions";
 
 export default async function AdminLayout({
@@ -13,9 +14,7 @@ export default async function AdminLayout({
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
         <div className="mb-6 flex items-center gap-2 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-lg">
-            🌊
-          </span>
+          <Logo size={36} />
           <div>
             <p className="text-sm font-semibold text-slate-900">Muelle Azul</p>
             <p className="text-xs text-slate-400">Administración</p>

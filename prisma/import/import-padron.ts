@@ -15,6 +15,7 @@
  */
 import { PrismaClient, TipoUnidad } from "@prisma/client";
 import { readFileSync } from "fs";
+import { formatearNombrePropio } from "../../src/lib/nombres";
 
 const prisma = new PrismaClient();
 
@@ -251,8 +252,16 @@ async function importar(filas: FilaPadron[]): Promise<void> {
     const key = nombre.trim().toLowerCase();
     const existente = propietarioIdPorNombre.get(key);
     if (existente) return existente;
+    // El padrón viene en MAYÚSCULAS; se guarda con capitalización normal.
     const creado = await prisma.propietario.create({
-      data: { nombre, email, emailSecundario, telefono, telefonoSecundario, canalEnvio },
+      data: {
+        nombre: formatearNombrePropio(nombre),
+        email,
+        emailSecundario,
+        telefono,
+        telefonoSecundario,
+        canalEnvio,
+      },
     });
     propietarioIdPorNombre.set(key, creado.id);
     return creado.id;

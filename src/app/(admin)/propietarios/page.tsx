@@ -69,6 +69,7 @@ export default async function PropietariosPage({
       <Table
         head={
           <tr>
+            <th className="w-12 px-4 py-3 text-right">#</th>
             <th className="px-4 py-3">Nombre</th>
             <th className="px-4 py-3">Documento</th>
             <th className="px-4 py-3">Contacto</th>
@@ -78,8 +79,11 @@ export default async function PropietariosPage({
           </tr>
         }
       >
-        {propietarios.map((p) => (
+        {propietarios.map((p, i) => (
           <tr key={p.id}>
+            <td className="px-4 py-3 text-right tabular-nums text-slate-400">
+              {(pagina - 1) * POR_PAGINA + i + 1}
+            </td>
             <td className="px-4 py-3 font-medium">
               <Link href={`/propietarios/${p.id}`} className="text-brand hover:underline">
                 {p.nombre}
@@ -106,7 +110,7 @@ export default async function PropietariosPage({
         ))}
         {propietarios.length === 0 && (
           <tr>
-            <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+            <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
               Sin resultados. {q && "Prueba con otro nombre."}
             </td>
           </tr>

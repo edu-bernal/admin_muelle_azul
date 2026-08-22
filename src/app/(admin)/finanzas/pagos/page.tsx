@@ -328,6 +328,7 @@ export default async function PagosPage({
         <Table
           head={
             <tr>
+              <th className="w-12 px-4 py-3 text-right">#</th>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Propietario</th>
               <th className="px-4 py-3">Medio</th>
@@ -338,8 +339,11 @@ export default async function PagosPage({
             </tr>
           }
         >
-          {recientes.map((p) => (
+          {recientes.map((p, i) => (
             <tr key={p.id}>
+              <td className="px-4 py-3 text-right tabular-nums text-slate-400">
+                {i + 1}
+              </td>
               <td className="px-4 py-3">{p.fechaPago.toISOString().slice(0, 10)}</td>
               <td className="px-4 py-3">{p.propietario.nombre}</td>
               <td className="px-4 py-3 text-slate-500">{p.medio}</td>
@@ -414,7 +418,7 @@ export default async function PagosPage({
           ))}
           {recientes.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                 {q || estadoFiltro
                   ? "Sin pagos que coincidan con la búsqueda."
                   : "Sin pagos registrados."}

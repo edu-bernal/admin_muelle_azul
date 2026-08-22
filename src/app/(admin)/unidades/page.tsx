@@ -105,6 +105,7 @@ export default async function UnidadesPage({
       <Table
         head={
           <tr>
+            <th className="w-12 px-4 py-3 text-right">#</th>
             <th className="px-4 py-3">Sector</th>
             <th className="px-4 py-3">Manzana</th>
             <th className="px-4 py-3">Lote</th>
@@ -116,11 +117,14 @@ export default async function UnidadesPage({
           </tr>
         }
       >
-        {unidades.map((u) => {
+        {unidades.map((u, i) => {
           const resp =
             u.titularidades.find((t) => t.esResponsablePago) ?? u.titularidades[0];
           return (
             <tr key={u.id}>
+              <td className="px-4 py-3 text-right tabular-nums text-slate-400">
+                {(pagina - 1) * POR_PAGINA + i + 1}
+              </td>
               <td className="px-4 py-3 text-slate-500">{u.sector.nombre}</td>
               <td className="px-4 py-3">{u.manzana}</td>
               <td className="px-4 py-3">{u.lote}</td>
@@ -142,7 +146,7 @@ export default async function UnidadesPage({
         })}
         {unidades.length === 0 && (
           <tr>
-            <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+            <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
               Sin resultados.
             </td>
           </tr>

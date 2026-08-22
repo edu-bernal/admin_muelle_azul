@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Table, Badge, LinkButton, inputClass, buttonClass } from "@/components/ui";
+import { Paginacion, paginaActual } from "@/components/paginacion";
 
 export const dynamic = "force-dynamic";
+
+const POR_PAGINA = 100;
 
 export default async function UnidadesPage({
   searchParams,
@@ -12,44 +15,54 @@ export default async function UnidadesPage({
     manzana?: string;
     lote?: string;
     estado?: string;
+    pagina?: string;
   }>;
 }) {
   const sp = await searchParams;
   const manzana = (sp.manzana ?? "").trim();
   const lote = (sp.lote ?? "").trim();
   const soloInactivas = sp.estado === "inactivas";
+  const pagina = paginaActual(sp.pagina);
 
   const sectores = await prisma.sector.findMany({
     where: { activo: true },
     orderBy: { nombre: "asc" },
   });
 
-  const unidades = await prisma.unidad.findMany({
-    where: {
-      activo: !soloInactivas,
-      ...(sp.sectorId ? { sectorId: sp.sectorId } : {}),
-      ...(manzana ? { manzana: { equals: manzana, mode: "insensitive" } } : {}),
-      ...(lote ? { lote: { equals: lote, mode: "insensitive" } } : {}),
-    },
-    orderBy: [{ sector: { nombre: "asc" } }, { manzana: "asc" }, { lote: "asc" }],
-    take: 500,
-    include: {
-      sector: true,
-      titularidades: {
-        where: { fechaFin: null },
-        include: { propietario: { select: { nombre: true } } },
+  const where = {
+    activo: !soloInactivas,
+    ...(sp.sectorId ? { sectorId: sp.sectorId } : {}),
+    ...(manzana
+      ? { manzana: { equals: manzana, mode: "insensitive" as const } }
+      : {}),
+    ...(lote ? { lote: { equals: lote, mode: "insensitive" as const } } : {}),
+  };
+
+  const [unidades, total] = await Promise.all([
+    prisma.unidad.findMany({
+      where,
+      orderBy: [{ sector: { nombre: "asc" } }, { manzana: "asc" }, { lote: "asc" }],
+      skip: (pagina - 1) * POR_PAGINA,
+      take: POR_PAGINA,
+      include: {
+        sector: true,
+        titularidades: {
+          where: { fechaFin: null },
+          include: { propietario: { select: { nombre: true } } },
+        },
+        _count: {
+          select: { cargos: { where: { estado: { in: ["PENDIENTE", "PARCIAL"] } } } },
+        },
       },
-      _count: {
-        select: { cargos: { where: { estado: { in: ["PENDIENTE", "PARCIAL"] } } } },
-      },
-    },
-  });
+    }),
+    prisma.unidad.count({ where }),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Propiedades"
-        subtitle={`${unidades.length}${unidades.length === 500 ? "+" : ""} unidades ${soloInactivas ? "inactivas" : "activas"}`}
+        subtitle={`${total} unidades ${soloInactivas ? "inactivas" : "activas"}`}
         action={<LinkButton href="/unidades/nueva">+ Nueva unidad</LinkButton>}
       />
 
@@ -135,6 +148,19 @@ export default async function UnidadesPage({
           </tr>
         )}
       </Table>
+
+      <Paginacion
+        pagina={pagina}
+        porPagina={POR_PAGINA}
+        total={total}
+        base="/unidades"
+        params={{
+          sectorId: sp.sectorId,
+          manzana,
+          lote,
+          estado: sp.estado,
+        }}
+      />
     </>
   );
 }

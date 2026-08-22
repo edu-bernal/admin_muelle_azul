@@ -1,38 +1,48 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Table, LinkButton, Badge, inputClass, buttonClass } from "@/components/ui";
+import { Paginacion, paginaActual } from "@/components/paginacion";
 
 export const dynamic = "force-dynamic";
+
+const POR_PAGINA = 100;
 
 export default async function PropietariosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; estado?: string }>;
+  searchParams: Promise<{ q?: string; estado?: string; pagina?: string }>;
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const soloInactivos = sp.estado === "inactivos";
+  const pagina = paginaActual(sp.pagina);
 
-  const propietarios = await prisma.propietario.findMany({
-    where: {
-      activo: !soloInactivos,
-      ...(q ? { nombre: { contains: q, mode: "insensitive" } } : {}),
-    },
-    orderBy: { nombre: "asc" },
-    take: 200,
-    include: {
-      titularidades: {
-        where: { fechaFin: null },
-        include: { unidad: { select: { codigo: true } } },
+  const where = {
+    activo: !soloInactivos,
+    ...(q ? { nombre: { contains: q, mode: "insensitive" as const } } : {}),
+  };
+
+  const [propietarios, total] = await Promise.all([
+    prisma.propietario.findMany({
+      where,
+      orderBy: { nombre: "asc" },
+      skip: (pagina - 1) * POR_PAGINA,
+      take: POR_PAGINA,
+      include: {
+        titularidades: {
+          where: { fechaFin: null },
+          include: { unidad: { select: { codigo: true } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.propietario.count({ where }),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Propietarios"
-        subtitle={`${propietarios.length}${propietarios.length === 200 ? "+" : ""} propietarios ${soloInactivos ? "inactivos" : "activos"}`}
+        subtitle={`${total} propietarios ${soloInactivos ? "inactivos" : "activos"}`}
         action={
           <LinkButton href="/propietarios/nuevo">+ Nuevo propietario</LinkButton>
         }
@@ -102,6 +112,14 @@ export default async function PropietariosPage({
           </tr>
         )}
       </Table>
+
+      <Paginacion
+        pagina={pagina}
+        porPagina={POR_PAGINA}
+        total={total}
+        base="/propietarios"
+        params={{ q, estado: sp.estado }}
+      />
     </>
   );
 }

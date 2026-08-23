@@ -18,11 +18,14 @@ export function PropietarioCombobox({
   name = "propietarioId",
   label = "Propietario",
   defaultSelectedId = "",
+  onChange,
 }: {
   propietarios: PropietarioOption[];
   name?: string;
   label?: string;
   defaultSelectedId?: string;
+  /** Avisa del propietario elegido ("" al limpiar la búsqueda). */
+  onChange?: (propietarioId: string) => void;
 }) {
   const inicial = defaultSelectedId
     ? propietarios.find((p) => p.id === defaultSelectedId)
@@ -62,6 +65,7 @@ export function PropietarioCombobox({
     setSelectedId(p.id);
     setQuery(etiqueta(p));
     setOpen(false);
+    onChange?.(p.id);
   }
 
   const inputId = `${name}-buscador`;
@@ -81,6 +85,7 @@ export function PropietarioCombobox({
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
+          if (selectedId) onChange?.("");
           setSelectedId("");
           setOpen(true);
         }}

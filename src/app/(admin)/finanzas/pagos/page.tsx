@@ -10,8 +10,7 @@ import {
   labelClass,
   buttonClass,
 } from "@/components/ui";
-import { PropietarioCombobox } from "@/components/propietario-combobox";
-import { ACCEPT_COMPROBANTE } from "@/lib/storage";
+import { RegistrarPagoForm } from "@/components/registrar-pago-form";
 import {
   registrarPagoAction,
   confirmarPagoAction,
@@ -135,85 +134,11 @@ export default async function PagosPage({
           <h2 className="mb-4 text-lg font-semibold text-slate-900">
             Registrar pago
           </h2>
-          <form action={registrarPagoAction} className="space-y-3">
-            <PropietarioCombobox propietarios={propietarios} />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass} htmlFor="monto">
-                  Monto (S/)
-                </label>
-                <input
-                  id="monto"
-                  name="monto"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="fecha">
-                  Fecha
-                </label>
-                <input
-                  id="fecha"
-                  name="fecha"
-                  type="date"
-                  defaultValue={hoy}
-                  required
-                  className={inputClass}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass} htmlFor="medio">
-                  Medio
-                </label>
-                <select id="medio" name="medio" className={inputClass}>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                  <option value="DEPOSITO">Depósito BBVA</option>
-                  <option value="YAPE">Yape</option>
-                  <option value="PLIN">Plin</option>
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="CHEQUE">Cheque</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="numeroOperacion">
-                  N° operación
-                </label>
-                <input
-                  id="numeroOperacion"
-                  name="numeroOperacion"
-                  className={inputClass}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="comprobante">
-                Comprobante (opcional)
-              </label>
-              <input
-                id="comprobante"
-                name="comprobante"
-                type="file"
-                accept={ACCEPT_COMPROBANTE}
-                className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
-              />
-              <p className="mt-1 text-xs text-slate-400">
-                Imagen o PDF del voucher, hasta 8 MB.
-              </p>
-            </div>
-            <p className="text-xs text-slate-400">
-              El pago se aplica automáticamente a los cargos más antiguos (FIFO) y
-              genera un recibo de caja.
-            </p>
-            <button type="submit" className={buttonClass()}>
-              Registrar y aplicar
-            </button>
-          </form>
+          <RegistrarPagoForm
+            propietarios={propietarios}
+            accion={registrarPagoAction}
+            hoy={hoy}
+          />
         </Card>
 
         <Card>

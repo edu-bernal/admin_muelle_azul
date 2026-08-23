@@ -11,6 +11,7 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { editarPagoAction } from "../../actions";
+import { ACCEPT_COMPROBANTE } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,37 @@ export default async function EditarPagoPage({
                 className={inputClass}
               />
             </div>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="comprobante">
+              Comprobante
+            </label>
+            {pago.voucherArchivoId && (
+              <p className="mb-2 text-sm">
+                <a
+                  href={`/api/comprobantes/${pago.voucherArchivoId}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-brand hover:underline"
+                >
+                  Ver comprobante actual
+                </a>
+              </p>
+            )}
+            <input
+              id="comprobante"
+              name="comprobante"
+              type="file"
+              accept={ACCEPT_COMPROBANTE}
+              className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Imagen o PDF, hasta 8 MB.
+              {pago.voucherArchivoId
+                ? " Si eliges uno nuevo, reemplaza al actual."
+                : ""}
+            </p>
           </div>
 
           <div className="flex gap-3 pt-2">

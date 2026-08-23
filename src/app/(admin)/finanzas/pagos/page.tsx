@@ -11,6 +11,7 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { PropietarioCombobox } from "@/components/propietario-combobox";
+import { ACCEPT_COMPROBANTE } from "@/lib/storage";
 import {
   registrarPagoAction,
   confirmarPagoAction,
@@ -190,6 +191,21 @@ export default async function PagosPage({
                 />
               </div>
             </div>
+            <div>
+              <label className={labelClass} htmlFor="comprobante">
+                Comprobante (opcional)
+              </label>
+              <input
+                id="comprobante"
+                name="comprobante"
+                type="file"
+                accept={ACCEPT_COMPROBANTE}
+                className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Imagen o PDF del voucher, hasta 8 MB.
+              </p>
+            </div>
             <p className="text-xs text-slate-400">
               El pago se aplica automáticamente a los cargos más antiguos (FIFO) y
               genera un recibo de caja.
@@ -338,6 +354,7 @@ export default async function PagosPage({
               <th className="px-4 py-3">Propietario</th>
               <th className="px-4 py-3">Medio</th>
               <th className="px-4 py-3">Recibo</th>
+              <th className="px-4 py-3">Comprobante</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Acción</th>
@@ -373,6 +390,20 @@ export default async function PagosPage({
                       Emitir recibo
                     </button>
                   </form>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td className="px-4 py-3 text-slate-500">
+                {p.voucherArchivoId ? (
+                  <a
+                    href={`/api/comprobantes/${p.voucherArchivoId}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-brand hover:underline"
+                  >
+                    Ver
+                  </a>
                 ) : (
                   "—"
                 )}
@@ -434,7 +465,7 @@ export default async function PagosPage({
           ))}
           {recientes.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
                 {q || estadoFiltro
                   ? "Sin pagos que coincidan con la búsqueda."
                   : "Sin pagos registrados."}

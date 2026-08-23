@@ -15,6 +15,17 @@ import {
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
 import type { MedioPago } from "@prisma/client";
+import { subirComprobante } from "@/lib/storage";
+
+/** Sube el comprobante si el formulario trae uno; devuelve el id del Archivo. */
+async function comprobanteDe(
+  formData: FormData,
+  usuarioId: string,
+): Promise<string | null> {
+  const archivo = formData.get("comprobante");
+  if (!(archivo instanceof File) || archivo.size === 0) return null;
+  return subirComprobante(archivo, { usuarioId, entidadTipo: "Pago" });
+}
 
 const MEDIOS = [
   "TRANSFERENCIA",
@@ -37,6 +48,14 @@ export async function registrarPagoAction(formData: FormData) {
     redirect("/finanzas/pagos?error=Datos%20incompletos");
   }
 
+  let voucherArchivoId: string | null = null;
+  try {
+    voucherArchivoId = await comprobanteDe(formData, user.userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al subir el comprobante";
+    redirect(`/finanzas/pagos?error=${encodeURIComponent(msg)}`);
+  }
+
   const input: RegistrarPagoInput = {
     propietarioId,
     fechaPago: new Date(`${fechaStr}T00:00:00Z`),
@@ -44,6 +63,7 @@ export async function registrarPagoAction(formData: FormData) {
     medio: medio as MedioPago,
     banco: (formData.get("banco") as string) || null,
     numeroOperacion: (formData.get("numeroOperacion") as string) || null,
+    voucherArchivoId,
   };
 
   let res: PagoResultado;
@@ -120,10 +140,19 @@ export async function editarPagoAction(formData: FormData) {
     redirect(`/finanzas/pagos/${pagoId}/editar?error=Datos%20incompletos`);
   }
 
+  let voucherArchivoId: string | null = null;
+  try {
+    voucherArchivoId = await comprobanteDe(formData, user.userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al subir el comprobante";
+    redirect(`/finanzas/pagos/${pagoId}/editar?error=${encodeURIComponent(msg)}`);
+  }
+
   try {
     await editarPago(
       pagoId,
       {
+        voucherArchivoId,
         medio: medio as MedioPago,
         banco: (formData.get("banco") as string) || null,
         numeroOperacion: (formData.get("numeroOperacion") as string) || null,

@@ -3,6 +3,7 @@ import { Prisma, type MedioPago } from "@prisma/client";
 import { dec, ZERO } from "@/lib/money";
 import { audit } from "@/lib/audit";
 import { unidadIdsDePropietario, siguienteNumeroRecibo } from "./shared";
+import { eliminarArchivo } from "@/lib/storage";
 
 type Tx = Prisma.TransactionClient;
 
@@ -406,6 +407,8 @@ export interface EditarPagoInput {
   fechaPago: Date;
   /** Solo se aplica si el pago aún está POR_VALIDAR (nada se ha aplicado todavía). */
   monto?: number;
+  /** Id de Archivo del comprobante. Si viene, reemplaza al anterior. */
+  voucherArchivoId?: string | null;
 }
 
 /**
@@ -435,7 +438,17 @@ export async function editarPago(
     data.monto = dec(input.monto);
   }
 
+  // Al reemplazar el comprobante se borra el anterior para no dejar huérfanos.
+  const anterior = pago.voucherArchivoId;
+  if (input.voucherArchivoId) {
+    data.voucherArchivoId = input.voucherArchivoId;
+  }
+
   await prisma.pago.update({ where: { id: pagoId }, data });
+
+  if (input.voucherArchivoId && anterior && anterior !== input.voucherArchivoId) {
+    await eliminarArchivo(anterior);
+  }
   await audit({
     usuarioId,
     accion: "EDITAR_PAGO",
@@ -461,6 +474,8 @@ export async function eliminarPago(
   motivo: string,
   usuarioId?: string | null,
 ): Promise<void> {
+  let voucherABorrar: string | null = null;
+
   await prisma.$transaction(async (tx) => {
     const pago = await tx.pago.findUnique({
       where: { id: pagoId },
@@ -528,8 +543,13 @@ export async function eliminarPago(
     if (pago.recibo) {
       await tx.reciboCaja.delete({ where: { id: pago.recibo.id } });
     }
+    voucherABorrar = pago.voucherArchivoId;
     await tx.pago.delete({ where: { id: pagoId } });
   });
+
+  // Fuera de la transacción: borrar el blob es una llamada externa y no debe
+  // mantener abierta la transacción de base de datos.
+  if (voucherABorrar) await eliminarArchivo(voucherABorrar);
 }
 
 /**

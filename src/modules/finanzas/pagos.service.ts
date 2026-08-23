@@ -531,3 +531,55 @@ export async function eliminarPago(
     await tx.pago.delete({ where: { id: pagoId } });
   });
 }
+
+/**
+ * Emite el recibo de caja de un pago que aún no lo tiene.
+ *
+ * Los pagos registrados por la app ya generan su recibo automáticamente; esto
+ * cubre los que llegaron por otra vía —principalmente la migración histórica—
+ * y los casos en que hay que reponer el comprobante.
+ *
+ * Consume el siguiente número del correlativo, así que sólo debe usarse cuando
+ * el pago realmente necesita un comprobante nuevo.
+ */
+export async function emitirReciboPago(
+  pagoId: string,
+  usuarioId?: string | null,
+): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const pago = await tx.pago.findUnique({
+      where: { id: pagoId },
+      include: {
+        recibo: true,
+        aplicaciones: { include: { cargo: { select: { periodo: true } } } },
+      },
+    });
+    if (!pago) throw new Error("Pago no encontrado");
+    if (pago.recibo)
+      throw new Error(`El pago ya tiene el recibo N° ${pago.recibo.numero}`);
+    if (pago.estado !== "CONFIRMADO")
+      throw new Error("Solo se emite recibo de pagos confirmados");
+
+    // Mismos períodos que habría tomado la aplicación FIFO, en orden.
+    const periodos = pago.aplicaciones
+      .map((a) => a.cargo.periodo)
+      .filter((p): p is Date => p !== null)
+      .sort((a, b) => a.getTime() - b.getTime())
+      .map((p) => p.toISOString().slice(0, 7));
+
+    const numero = await emitirRecibo(tx, pago.id, periodos, usuarioId);
+
+    await audit(
+      {
+        usuarioId,
+        accion: "EMITIR_RECIBO",
+        entidad: "Pago",
+        entidadId: pago.id,
+        datosDespues: { recibo: numero, periodos: periodos.join(", ") },
+      },
+      tx,
+    );
+
+    return numero;
+  });
+}

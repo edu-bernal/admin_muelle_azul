@@ -17,6 +17,7 @@ import {
   rechazarPagoAction,
   anularPagoAction,
   eliminarPagoAction,
+  emitirReciboAction,
 } from "./actions";
 import type { EstadoPago, Prisma } from "@prisma/client";
 
@@ -114,7 +115,11 @@ export default async function PagosPage({
         <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           ✅ Operación realizada
           {sp.ok.startsWith("recibo-") &&
-            ` — ${sp.ok.replace("recibo-", "Recibo N° ")}, aplicado ${formatPEN(sp.aplicado ?? 0)}`}
+            ` — ${sp.ok.replace("recibo-", "Recibo N° ")}${
+              Number(sp.aplicado) > 0
+                ? `, aplicado ${formatPEN(sp.aplicado ?? 0)}`
+                : ""
+            }`}
           .
         </div>
       )}
@@ -357,6 +362,17 @@ export default async function PagosPage({
                   >
                     N° {p.recibo.numero} · PDF
                   </a>
+                ) : p.estado === "CONFIRMADO" ? (
+                  <form action={emitirReciboAction}>
+                    <input type="hidden" name="pagoId" value={p.id} />
+                    <button
+                      type="submit"
+                      title="Genera el comprobante y consume el siguiente número del correlativo"
+                      className="rounded-md border border-brand px-2 py-1 text-xs font-medium text-brand hover:bg-brand/5"
+                    >
+                      Emitir recibo
+                    </button>
+                  </form>
                 ) : (
                   "—"
                 )}

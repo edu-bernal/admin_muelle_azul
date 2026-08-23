@@ -10,6 +10,7 @@ import {
   anularPago,
   editarPago,
   eliminarPago,
+  emitirReciboPago,
   type PagoResultado,
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
@@ -154,4 +155,20 @@ export async function eliminarPagoAction(formData: FormData) {
   }
   revalidatePath("/finanzas/pagos");
   redirect("/finanzas/pagos?ok=eliminado");
+}
+
+export async function emitirReciboAction(formData: FormData) {
+  const user = await requirePermission("finanzas.pagos.registrar");
+  const pagoId = String(formData.get("pagoId") ?? "");
+  if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
+
+  let numero: number;
+  try {
+    numero = await emitirReciboPago(pagoId, user.userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error";
+    redirect(`/finanzas/pagos?error=${encodeURIComponent(msg)}`);
+  }
+  revalidatePath("/finanzas/pagos");
+  redirect(`/finanzas/pagos?ok=recibo-${numero}&aplicado=0`);
 }

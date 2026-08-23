@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { TablaRedimensionable } from "@/components/tabla-redimensionable";
 
 export function PageHeader({
   title,
@@ -115,6 +116,10 @@ export const inputClass =
 
 export const labelClass = "block text-sm font-medium text-slate-700 mb-1";
 
+/**
+ * Tabla de los listados. El ancho de cada columna se ajusta arrastrando el
+ * borde de su encabezado (ver TablaRedimensionable).
+ */
 export function Table({
   head,
   children,
@@ -122,14 +127,5 @@ export function Table({
   head: ReactNode;
   children: ReactNode;
 }) {
-  return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-          {head}
-        </thead>
-        <tbody className="divide-y divide-slate-100">{children}</tbody>
-      </table>
-    </div>
-  );
+  return <TablaRedimensionable head={head}>{children}</TablaRedimensionable>;
 }

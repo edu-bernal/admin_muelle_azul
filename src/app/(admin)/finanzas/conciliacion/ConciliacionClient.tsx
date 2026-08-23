@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { inputClass, labelClass } from "@/components/ui";
+import { TablaRedimensionable } from "@/components/tabla-redimensionable";
 import { confirmarConciliadoAction } from "./actions";
 
 interface PagoPend {
@@ -58,19 +59,18 @@ export function ConciliacionClient({ pagos }: { pagos: PagoPend[] }) {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
+      <TablaRedimensionable
+        head={
+          <tr>
               <th className="px-4 py-3">Propietario</th>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Medio</th>
               <th className="px-4 py-3">Operación</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3">Conciliación</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+          </tr>
+        }
+      >
             {pagos.map((p) => {
               const m = matches(p);
               return (
@@ -105,9 +105,7 @@ export function ConciliacionClient({ pagos }: { pagos: PagoPend[] }) {
                 </td>
               </tr>
             )}
-          </tbody>
-        </table>
-      </div>
+      </TablaRedimensionable>
       <p className="text-xs text-slate-400">
         Al confirmar, el pago se aplica a los cargos (FIFO) y se emite el recibo,
         igual que en la validación manual.

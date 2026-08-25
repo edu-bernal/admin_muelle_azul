@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { estadoCuentaPropietario } from "@/modules/finanzas/estado-cuenta.service";
-import { PageHeader, Card, buttonClass } from "@/components/ui";
+import {
+  PageHeader,
+  Card,
+  buttonClass,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { PropietarioCombobox } from "@/components/propietario-combobox";
 import { EstadoCuentaView } from "@/components/estado-cuenta-view";
 
@@ -9,9 +15,13 @@ export const dynamic = "force-dynamic";
 export default async function EstadosCuentaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ propietarioId?: string }>;
+  searchParams: Promise<{ propietarioId?: string; desde?: string; hasta?: string }>;
 }) {
   const sp = await searchParams;
+  const hoy = new Date().toISOString().slice(0, 10);
+  // Por defecto, el año en curso: es el rango que se pide en ventanilla.
+  const desde = sp.desde || `${hoy.slice(0, 4)}-01-01`;
+  const hasta = sp.hasta || hoy;
   const propietariosRaw = await prisma.propietario.findMany({
     where: { activo: true, titularidades: { some: { fechaFin: null } } },
     orderBy: { nombre: "asc" },
@@ -50,13 +60,54 @@ export default async function EstadosCuentaPage({
               defaultSelectedId={sp.propietarioId ?? ""}
             />
           </div>
+          <div>
+            <label className={labelClass} htmlFor="desde">
+              Desde
+            </label>
+            <input
+              id="desde"
+              name="desde"
+              type="date"
+              defaultValue={desde}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="hasta">
+              Hasta
+            </label>
+            <input
+              id="hasta"
+              name="hasta"
+              type="date"
+              defaultValue={hasta}
+              className={inputClass}
+            />
+          </div>
           <button type="submit" className={buttonClass("ghost")}>
             Ver estado
           </button>
         </form>
       </Card>
 
-      {ec && <EstadoCuentaView ec={ec} />}
+      {ec && (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-sm text-slate-600">
+              Estado de cuenta del {desde} al {hasta}
+            </span>
+            <a
+              href={`/api/estados-cuenta/${sp.propietarioId}/pdf?desde=${desde}&hasta=${hasta}`}
+              target="_blank"
+              rel="noopener"
+              className={buttonClass()}
+            >
+              Descargar PDF
+            </a>
+          </div>
+          <EstadoCuentaView ec={ec} />
+        </>
+      )}
     </>
   );
 }

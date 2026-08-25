@@ -1,4 +1,4 @@
-import { put, del } from "@vercel/blob";
+import { put, del, get } from "@vercel/blob";
 import { mkdir, writeFile, readFile, unlink } from "fs/promises";
 import { join, resolve, basename } from "path";
 import { prisma } from "@/lib/prisma";
@@ -67,8 +67,10 @@ export async function subirComprobante(
           "Crea el Blob store en Vercel → Storage y vuelve a desplegar.",
       );
     }
+    // Privado: los vouchers llevan datos bancarios, así que el archivo no
+    // debe ser accesible por URL ni siquiera conociéndola.
     const blob = await put(`comprobantes/${nombre}`, archivo, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
     });
     storageKey = blob.url;
@@ -91,9 +93,13 @@ export async function subirComprobante(
 /** Lee el contenido de un comprobante, esté en Vercel Blob o en disco. */
 export async function leerArchivo(storageKey: string): Promise<Buffer> {
   if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
-    const respuesta = await fetch(storageKey);
-    if (!respuesta.ok) throw new Error("No se pudo leer el archivo almacenado");
-    return Buffer.from(await respuesta.arrayBuffer());
+    const resultado = await get(storageKey, { access: "private" });
+    if (!resultado || resultado.statusCode !== 200 || !resultado.stream) {
+      throw new Error("No se pudo leer el archivo almacenado");
+    }
+    return Buffer.from(
+      await new Response(resultado.stream).arrayBuffer(),
+    );
   }
 
   // Ruta local: se reconstruye desde la carpeta base usando solo el nombre,

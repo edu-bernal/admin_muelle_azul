@@ -181,3 +181,164 @@ export async function alternarTipoAction(formData: FormData) {
   revalidatePath(RUTA);
   volver(tipo.activo ? "Tipo desactivado" : "Tipo activado");
 }
+
+// ── Conceptos de cobro ─────────────────────────────────────────────────────
+
+export async function guardarConceptoAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const codigo = normalizarCodigo(String(formData.get("codigo") ?? ""));
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const esRecurrente = formData.get("esRecurrente") === "on";
+  const generaMora = formData.get("generaMora") === "on";
+
+  if (!codigo || !nombre) volver("Código y nombre son obligatorios", true);
+
+  try {
+    if (id) {
+      // El código no se edita: la emisión distingue la cuota ordinaria por el
+      // código MANT, y los cargos históricos quedaron ligados a él.
+      await prisma.conceptoCobro.update({
+        where: { id },
+        data: { nombre, esRecurrente, generaMora },
+      });
+      await audit({
+        usuarioId: user.userId,
+        accion: "EDITAR_CONCEPTO",
+        entidad: "ConceptoCobro",
+        entidadId: id,
+        datosDespues: { nombre, esRecurrente, generaMora },
+      });
+    } else {
+      const creado = await prisma.conceptoCobro.create({
+        data: { codigo, nombre, esRecurrente, generaMora },
+      });
+      await audit({
+        usuarioId: user.userId,
+        accion: "CREAR_CONCEPTO",
+        entidad: "ConceptoCobro",
+        entidadId: creado.id,
+        datosDespues: { codigo, nombre, esRecurrente, generaMora },
+      });
+    }
+  } catch (e) {
+    const msg = e instanceof Error && e.message.includes("Unique")
+      ? `Ya existe un concepto con el código ${codigo}`
+      : "No se pudo guardar el concepto";
+    volver(msg, true);
+  }
+
+  revalidatePath(RUTA);
+  volver("Concepto guardado");
+}
+
+export async function alternarConceptoAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const concepto = await prisma.conceptoCobro.findUnique({
+    where: { id },
+    include: { _count: { select: { cargos: true } } },
+  });
+  if (!concepto) volver("Concepto no encontrado", true);
+
+  if (concepto.activo && concepto.codigo === "MANT") {
+    volver("La cuota de mantenimiento no se puede desactivar: es la base de la emisión ordinaria", true);
+  }
+  if (concepto.activo && concepto._count.cargos > 0) {
+    volver(
+      `No se puede desactivar: ${concepto._count.cargos} cargos usan el concepto ${concepto.nombre}`,
+      true,
+    );
+  }
+
+  await prisma.conceptoCobro.update({
+    where: { id },
+    data: { activo: !concepto.activo },
+  });
+  await audit({
+    usuarioId: user.userId,
+    accion: concepto.activo ? "DESACTIVAR_CONCEPTO" : "ACTIVAR_CONCEPTO",
+    entidad: "ConceptoCobro",
+    entidadId: id,
+  });
+
+  revalidatePath(RUTA);
+  volver(concepto.activo ? "Concepto desactivado" : "Concepto activado");
+}
+
+// ── Tarifas de la cuota ordinaria ──────────────────────────────────────────
+
+export async function guardarTarifaAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const desde = String(formData.get("vigenteDesde") ?? "");
+  const monto = Number(formData.get("montoMensual"));
+  const sectorId = String(formData.get("sectorId") ?? "") || null;
+  const tipoUnidadId = String(formData.get("tipoUnidadId") ?? "") || null;
+
+  if (!desde) volver("Indica desde cuándo rige la tarifa", true);
+  if (!Number.isFinite(monto) || monto <= 0) volver("El monto debe ser mayor que cero", true);
+
+  const data = {
+    // Las tarifas rigen desde el primer día del mes indicado.
+    vigenteDesde: new Date(`${desde.slice(0, 7)}-01T00:00:00Z`),
+    montoMensual: monto,
+    sectorId,
+    tipoUnidadId,
+  };
+
+  if (id) {
+    await prisma.tarifaCuota.update({ where: { id }, data });
+    await audit({
+      usuarioId: user.userId,
+      accion: "EDITAR_TARIFA",
+      entidad: "TarifaCuota",
+      entidadId: id,
+      datosDespues: { ...data, vigenteDesde: data.vigenteDesde.toISOString() },
+    });
+  } else {
+    const creada = await prisma.tarifaCuota.create({ data });
+    await audit({
+      usuarioId: user.userId,
+      accion: "CREAR_TARIFA",
+      entidad: "TarifaCuota",
+      entidadId: creada.id,
+      datosDespues: { ...data, vigenteDesde: data.vigenteDesde.toISOString() },
+    });
+  }
+
+  revalidatePath(RUTA);
+  volver("Tarifa guardada");
+}
+
+export async function eliminarTarifaAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const tarifa = await prisma.tarifaCuota.findUnique({ where: { id } });
+  if (!tarifa) volver("Tarifa no encontrada", true);
+
+  // Sin una tarifa general no se puede emitir la cuota ordinaria.
+  if (tarifa.sectorId === null && tarifa.tipoUnidadId === null) {
+    const generales = await prisma.tarifaCuota.count({
+      where: { sectorId: null, tipoUnidadId: null },
+    });
+    if (generales <= 1) {
+      volver("Debe quedar al menos una tarifa general o no se podrá emitir la cuota ordinaria", true);
+    }
+  }
+
+  await prisma.tarifaCuota.delete({ where: { id } });
+  await audit({
+    usuarioId: user.userId,
+    accion: "ELIMINAR_TARIFA",
+    entidad: "TarifaCuota",
+    entidadId: id,
+    datosAntes: {
+      vigenteDesde: tarifa.vigenteDesde.toISOString(),
+      montoMensual: tarifa.montoMensual.toString(),
+    },
+  });
+
+  revalidatePath(RUTA);
+  volver("Tarifa eliminada");
+}

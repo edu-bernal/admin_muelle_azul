@@ -35,17 +35,46 @@ function montoOrdinarioUnidad(
   return tarifaGlobal;
 }
 
-async function tarifaVigente(periodo: Date): Promise<Prisma.Decimal> {
-  const tarifa = await prisma.tarifaCuota.findFirst({
-    where: { vigenteDesde: { lte: periodo }, sectorId: null, tipoUnidad: null },
+/**
+ * Tarifas en vigor para el período, de la más específica a la más general.
+ * Una tarifa puede acotarse por sector, por tipo de propiedad, por ambos, o
+ * aplicar a todo el condominio; `tarifaDeUnidad` elige la que corresponda.
+ */
+async function tarifasVigentes(periodo: Date) {
+  const tarifas = await prisma.tarifaCuota.findMany({
+    where: { vigenteDesde: { lte: periodo } },
     orderBy: { vigenteDesde: "desc" },
   });
-  if (!tarifa) {
+  if (!tarifas.some((t) => t.sectorId === null && t.tipoUnidadId === null)) {
     throw new Error(
-      "No hay una tarifa de cuota vigente para el período. Configure una en tarifa_cuota.",
+      "No hay una tarifa general vigente para el período. Configúrala en Parámetros del sistema.",
     );
   }
-  return tarifa.montoMensual;
+  return tarifas;
+}
+
+/**
+ * Tarifa aplicable a una unidad: gana la coincidencia más específica y, entre
+ * varias del mismo nivel, la de vigencia más reciente (ya vienen ordenadas).
+ */
+function tarifaDeUnidad(
+  tarifas: { sectorId: string | null; tipoUnidadId: string | null; montoMensual: Prisma.Decimal }[],
+  unidad: { sectorId: string; tipoId: string },
+): Prisma.Decimal {
+  const coincide = (
+    t: { sectorId: string | null; tipoUnidadId: string | null },
+    sector: boolean,
+    tipo: boolean,
+  ) =>
+    (sector ? t.sectorId === unidad.sectorId : t.sectorId === null) &&
+    (tipo ? t.tipoUnidadId === unidad.tipoId : t.tipoUnidadId === null);
+
+  return (
+    tarifas.find((t) => coincide(t, true, true)) ??
+    tarifas.find((t) => coincide(t, true, false)) ??
+    tarifas.find((t) => coincide(t, false, true)) ??
+    tarifas.find((t) => coincide(t, false, false))!
+  ).montoMensual;
 }
 
 /**
@@ -58,11 +87,16 @@ async function resolverMontos(
   concepto: { codigo: string },
   periodo: Date,
   montoManual: number | undefined,
-  unidades: { baseCalculoCuota: string | null; montoFijoCuota: Prisma.Decimal | null }[],
+  unidades: {
+    sectorId: string;
+    tipoId: string;
+    baseCalculoCuota: string | null;
+    montoFijoCuota: Prisma.Decimal | null;
+  }[],
 ): Promise<Prisma.Decimal[]> {
   if (concepto.codigo === "MANT") {
-    const tarifa = await tarifaVigente(periodo);
-    return unidades.map((u) => montoOrdinarioUnidad(u, tarifa));
+    const tarifas = await tarifasVigentes(periodo);
+    return unidades.map((u) => montoOrdinarioUnidad(u, tarifaDeUnidad(tarifas, u)));
   }
   if (montoManual == null || montoManual <= 0) {
     throw new Error(
@@ -88,6 +122,8 @@ export async function previsualizarEmision(
     orderBy: { codigo: "asc" },
     select: {
       codigo: true,
+      sectorId: true,
+      tipoId: true,
       baseCalculoCuota: true,
       montoFijoCuota: true,
     },
@@ -150,6 +186,8 @@ export async function confirmarEmision(
     select: {
       id: true,
       codigo: true,
+      sectorId: true,
+      tipoId: true,
       baseCalculoCuota: true,
       montoFijoCuota: true,
     },

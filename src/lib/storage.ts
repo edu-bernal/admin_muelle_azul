@@ -1,20 +1,23 @@
 import { put, del } from "@vercel/blob";
+import { mkdir, writeFile, readFile, unlink } from "fs/promises";
+import { join, resolve, basename } from "path";
 import { prisma } from "@/lib/prisma";
+import { MIME_COMPROBANTE, MAX_BYTES } from "@/lib/comprobantes";
 
-/** Tipos aceptados como comprobante de pago. */
-export const MIME_COMPROBANTE = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "application/pdf",
-] as const;
 
-/** Tope por archivo. Una foto de celular ronda 1–3 MB. */
-export const MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * Carpeta local donde se guardan los comprobantes mientras no exista el Blob
+ * store. Solo se usa fuera de Vercel: allí el sistema de archivos es efímero
+ * y de solo lectura, así que lo escrito se perdería en el siguiente despliegue.
+ */
+function carpetaLocal(): string {
+  return process.env.COMPROBANTES_DIR ?? join(process.cwd(), "Reportes");
+}
 
-export const ACCEPT_COMPROBANTE = "image/*,application/pdf";
+/** true si toca guardar en disco en vez de Vercel Blob. */
+function usarDiscoLocal(): boolean {
+  return !process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL;
+}
 
 function validar(archivo: File): void {
   if (archivo.size === 0) throw new Error("El archivo está vacío");
@@ -26,18 +29,21 @@ function validar(archivo: File): void {
     throw new Error("Solo se aceptan imágenes (JPG, PNG, WEBP, HEIC) o PDF");
 }
 
-/** Quita acentos y caracteres raros para que la clave del blob sea estable. */
+/** Quita acentos y caracteres raros para que la clave del archivo sea estable. */
 function nombreSeguro(nombre: string): string {
   return nombre
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .slice(-80);
 }
 
 /**
- * Sube un comprobante a Vercel Blob y deja su registro en la tabla Archivo.
- * Devuelve el id del Archivo, que es lo que se guarda en Pago.voucherArchivoId.
+ * Sube un comprobante y deja su registro en la tabla Archivo. Devuelve el id
+ * del Archivo, que es lo que se guarda en Pago.voucherArchivoId.
+ *
+ * En `storageKey` queda una URL (Vercel Blob) o una ruta absoluta en disco;
+ * `leerArchivo` distingue una de otra.
  */
 export async function subirComprobante(
   archivo: File,
@@ -45,22 +51,32 @@ export async function subirComprobante(
 ): Promise<string> {
   validar(archivo);
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error(
-      "Falta configurar el almacenamiento de archivos (BLOB_READ_WRITE_TOKEN). " +
-        "Crea el Blob store en Vercel → Storage y vuelve a desplegar.",
-    );
-  }
+  const nombre = `${Date.now()}-${nombreSeguro(archivo.name)}`;
+  let storageKey: string;
 
-  const blob = await put(
-    `comprobantes/${nombreSeguro(archivo.name)}`,
-    archivo,
-    { access: "public", addRandomSuffix: true },
-  );
+  if (usarDiscoLocal()) {
+    const carpeta = carpetaLocal();
+    await mkdir(carpeta, { recursive: true });
+    const destino = join(carpeta, nombre);
+    await writeFile(destino, Buffer.from(await archivo.arrayBuffer()));
+    storageKey = destino;
+  } else {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error(
+        "Falta configurar el almacenamiento de archivos (BLOB_READ_WRITE_TOKEN). " +
+          "Crea el Blob store en Vercel → Storage y vuelve a desplegar.",
+      );
+    }
+    const blob = await put(`comprobantes/${nombre}`, archivo, {
+      access: "public",
+      addRandomSuffix: true,
+    });
+    storageKey = blob.url;
+  }
 
   const registro = await prisma.archivo.create({
     data: {
-      storageKey: blob.url,
+      storageKey,
       nombreOriginal: archivo.name.slice(0, 255),
       mime: archivo.type,
       tamanoBytes: archivo.size,
@@ -72,17 +88,35 @@ export async function subirComprobante(
   return registro.id;
 }
 
+/** Lee el contenido de un comprobante, esté en Vercel Blob o en disco. */
+export async function leerArchivo(storageKey: string): Promise<Buffer> {
+  if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+    const respuesta = await fetch(storageKey);
+    if (!respuesta.ok) throw new Error("No se pudo leer el archivo almacenado");
+    return Buffer.from(await respuesta.arrayBuffer());
+  }
+
+  // Ruta local: se reconstruye desde la carpeta base usando solo el nombre,
+  // para que un storageKey manipulado no pueda apuntar fuera de ella.
+  const ruta = resolve(carpetaLocal(), basename(storageKey));
+  return readFile(ruta);
+}
+
 /**
  * Borra el archivo del almacenamiento y su registro. Se usa al reemplazar un
- * comprobante; si el blob ya no existe igual se limpia la fila.
+ * comprobante; si el archivo ya no existe igual se limpia la fila.
  */
 export async function eliminarArchivo(archivoId: string): Promise<void> {
   const registro = await prisma.archivo.findUnique({ where: { id: archivoId } });
   if (!registro) return;
   try {
-    await del(registro.storageKey);
+    if (registro.storageKey.startsWith("http")) {
+      await del(registro.storageKey);
+    } else {
+      await unlink(resolve(carpetaLocal(), basename(registro.storageKey)));
+    }
   } catch {
-    /* el blob pudo borrarse antes; la fila se limpia igual */
+    /* el archivo pudo borrarse antes; la fila se limpia igual */
   }
   await prisma.archivo.delete({ where: { id: archivoId } });
 }

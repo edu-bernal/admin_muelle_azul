@@ -6,7 +6,7 @@ import {
   type PropietarioOption,
 } from "@/components/propietario-combobox";
 import { inputClass, labelClass, buttonClass } from "@/components/ui";
-import { ACCEPT_COMPROBANTE } from "@/lib/storage";
+import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 import type { CargoPendiente } from "@/modules/finanzas/cargos-pendientes.service";
 
 const PEN = new Intl.NumberFormat("es-PE", {

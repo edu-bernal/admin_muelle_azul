@@ -50,3 +50,7 @@ next-env.d.ts
 
 # Configuración local de herramientas
 /.claude/
+
+# Comprobantes de pago guardados en local (datos bancarios reales).
+# Nunca deben salir de la máquina: el repositorio es público.
+/Reportes/

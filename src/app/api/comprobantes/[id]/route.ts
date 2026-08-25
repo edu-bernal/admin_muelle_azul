@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, can } from "@/lib/auth";
+import { leerArchivo } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -34,15 +35,17 @@ export async function GET(
     }
   }
 
-  const respuesta = await fetch(archivo.storageKey);
-  if (!respuesta.ok || !respuesta.body) {
+  let contenido: Buffer;
+  try {
+    contenido = await leerArchivo(archivo.storageKey);
+  } catch {
     return NextResponse.json(
       { error: "No se pudo leer el archivo almacenado" },
       { status: 502 },
     );
   }
 
-  return new NextResponse(respuesta.body, {
+  return new NextResponse(new Uint8Array(contenido), {
     status: 200,
     headers: {
       "Content-Type": archivo.mime,

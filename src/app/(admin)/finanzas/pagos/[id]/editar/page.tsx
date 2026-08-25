@@ -11,7 +11,7 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { editarPagoAction } from "../../actions";
-import { ACCEPT_COMPROBANTE } from "@/lib/storage";
+import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 
 export const dynamic = "force-dynamic";
 

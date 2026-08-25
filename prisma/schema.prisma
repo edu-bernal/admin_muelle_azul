@@ -36,11 +36,6 @@ enum CanalEnvio {
   WHATSAPP
 }
 
-enum TipoUnidad {
-  CASA
-  TERRENO
-}
-
 enum BaseCalculoCuota {
   ALICUOTA
   FIJO
@@ -258,6 +253,18 @@ model Sector {
   tarifas  TarifaCuota[]
 }
 
+/// Maestro configurable desde Parámetros del sistema. Antes era un enum,
+/// lo que obligaba a una migración para dar de alta un tipo nuevo.
+model TipoUnidad {
+  id       String        @id @default(uuid())
+  codigo   String        @unique // CASA, TERRENO, ...
+  nombre   String
+  orden    Int           @default(0)
+  activo   Boolean       @default(true)
+  unidades Unidad[]
+  tarifas  TarifaCuota[]
+}
+
 model Propietario {
   id                 String                  @id @default(uuid())
   nombre             String
@@ -289,7 +296,8 @@ model Unidad {
   sector            Sector                 @relation(fields: [sectorId], references: [id])
   manzana           String
   lote              String
-  tipo              TipoUnidad             @default(CASA)
+  tipoId            String
+  tipo              TipoUnidad             @relation(fields: [tipoId], references: [id])
   areaM2            Decimal?               @db.Decimal(8, 2)
   alicuota          Decimal?               @db.Decimal(7, 4)
   baseCalculoCuota  BaseCalculoCuota?
@@ -336,7 +344,8 @@ model PropiedadTitularidad {
 model TarifaCuota {
   id           String      @id @default(uuid())
   vigenteDesde DateTime
-  tipoUnidad   TipoUnidad?
+  tipoUnidadId String?
+  tipoUnidad   TipoUnidad? @relation(fields: [tipoUnidadId], references: [id])
   sectorId     String?
   sector       Sector?     @relation(fields: [sectorId], references: [id])
   montoMensual Decimal     @db.Decimal(12, 2)

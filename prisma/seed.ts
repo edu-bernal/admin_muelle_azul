@@ -69,6 +69,21 @@ async function seedSectores() {
   }
 }
 
+/** Maestro de tipos de propiedad, configurable desde Parámetros del sistema. */
+async function seedTiposUnidad() {
+  const tipos = [
+    { codigo: "CASA", nombre: "Casa", orden: 1 },
+    { codigo: "TERRENO", nombre: "Terreno sin construir", orden: 2 },
+  ];
+  for (const t of tipos) {
+    await prisma.tipoUnidad.upsert({
+      where: { codigo: t.codigo },
+      create: t,
+      update: { nombre: t.nombre, orden: t.orden },
+    });
+  }
+}
+
 async function seedTarifas() {
   const count = await prisma.tarifaCuota.count();
   if (count === 0) {
@@ -173,6 +188,8 @@ async function seedSuperAdmin() {
 async function seedDemo() {
   const sectores = await prisma.sector.findMany();
   const sectorId = (codigo: string) => sectores.find((s) => s.codigo === codigo)!.id;
+  const tipos = await prisma.tipoUnidad.findMany();
+  const tipoId = (codigo: string) => tipos.find((t) => t.codigo === codigo)!.id;
 
   // Datos de ejemplo FICTICIOS (el repositorio es público). La carga del padrón
   // real se hace localmente según docs/05-MIGRACION-DATOS.md.
@@ -193,7 +210,7 @@ async function seedDemo() {
         sectorId: sectorId(d.sector),
         manzana: d.mz,
         lote: d.lote,
-        tipo: d.tipo,
+        tipoId: tipoId(d.tipo),
       },
       update: {},
     });
@@ -414,6 +431,7 @@ async function main() {
   await seedConfiguracion();
   await seedCondominio();
   await seedSectores();
+  await seedTiposUnidad();
   await seedTarifas();
   await seedConceptos();
   await seedPartidas();

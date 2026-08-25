@@ -19,8 +19,13 @@ export default async function EditarUnidadPage({
   const unidad = await prisma.unidad.findUnique({ where: { id } });
   if (!unidad) notFound();
 
-  const [sectores, unidadesPrincipales] = await Promise.all([
+  const [sectores, tipos, unidadesPrincipales] = await Promise.all([
     prisma.sector.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.tipoUnidad.findMany({
+      where: { activo: true },
+      orderBy: [{ orden: "asc" }, { nombre: "asc" }],
+      select: { id: true, nombre: true },
+    }),
     prisma.unidad.findMany({
       where: { activo: true, id: { not: id } },
       orderBy: { codigo: "asc" },
@@ -38,6 +43,7 @@ export default async function EditarUnidadPage({
           submitLabel="Guardar cambios"
           cancelHref={`/unidades/${id}`}
           sectores={sectores}
+          tipos={tipos}
           unidadesPrincipales={unidadesPrincipales}
           codigoActual={unidad.codigo}
           defaultValues={{
@@ -45,7 +51,7 @@ export default async function EditarUnidadPage({
             sectorId: unidad.sectorId,
             manzana: unidad.manzana,
             lote: unidad.lote,
-            tipo: unidad.tipo,
+            tipoId: unidad.tipoId,
             areaM2: unidad.areaM2?.toString() ?? "",
             alicuota: unidad.alicuota?.toString() ?? "",
             baseCalculoCuota: unidad.baseCalculoCuota,

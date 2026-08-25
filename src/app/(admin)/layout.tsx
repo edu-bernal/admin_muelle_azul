@@ -90,6 +90,15 @@ export default async function AdminLayout({
               <NavLink href="/planillas" icon="👷">Planillas</NavLink>
             </>
           )}
+
+          {can(user, "config.gestionar") && (
+            <>
+              <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Sistema
+              </p>
+              <NavLink href="/parametros" icon="⚙️">Parámetros</NavLink>
+            </>
+          )}
         </nav>
 
         <div className="mt-4 border-t border-slate-100 pt-4">

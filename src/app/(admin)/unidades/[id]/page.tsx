@@ -34,6 +34,7 @@ export default async function UnidadDetallePage({
     where: { id },
     include: {
       sector: true,
+      tipo: true,
       unidadPrincipal: { select: { id: true, codigo: true } },
       unidadesVinculadas: { select: { id: true, codigo: true } },
       titularidades: {
@@ -101,7 +102,7 @@ export default async function UnidadDetallePage({
             <div>
               <dt className="text-slate-400">Tipo</dt>
               <dd>
-                <Badge>{unidad.tipo}</Badge>
+                <Badge>{unidad.tipo.nombre}</Badge>
               </dd>
             </div>
             <div>

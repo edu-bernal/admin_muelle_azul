@@ -33,7 +33,11 @@ export default async function PropietarioDetallePage({
     where: { id },
     include: {
       titularidades: {
-        include: { unidad: { select: { id: true, codigo: true, tipo: true } } },
+        include: {
+          unidad: {
+            select: { id: true, codigo: true, tipo: { select: { nombre: true } } },
+          },
+        },
         orderBy: { fechaInicio: "desc" },
       },
       usuarios: { select: { email: true, estado: true } },
@@ -165,7 +169,7 @@ export default async function PropietarioDetallePage({
                 <tr key={t.id}>
                   <td className="px-4 py-3 font-medium">{t.unidad.codigo}</td>
                   <td className="px-4 py-3">
-                    <Badge>{t.unidad.tipo}</Badge>
+                    <Badge>{t.unidad.tipo.nombre}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     <form action={actualizarTitularidadAction} className="flex items-center gap-2">

@@ -12,8 +12,13 @@ export default async function NuevaUnidadPage({
 }) {
   const { error } = await searchParams;
 
-  const [sectores, unidadesPrincipales] = await Promise.all([
+  const [sectores, tipos, unidadesPrincipales] = await Promise.all([
     prisma.sector.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.tipoUnidad.findMany({
+      where: { activo: true },
+      orderBy: [{ orden: "asc" }, { nombre: "asc" }],
+      select: { id: true, nombre: true },
+    }),
     prisma.unidad.findMany({
       where: { activo: true },
       orderBy: { codigo: "asc" },
@@ -31,6 +36,7 @@ export default async function NuevaUnidadPage({
           submitLabel="Guardar"
           cancelHref="/unidades"
           sectores={sectores}
+          tipos={tipos}
           unidadesPrincipales={unidadesPrincipales}
         />
       </Card>

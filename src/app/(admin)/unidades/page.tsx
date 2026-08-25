@@ -46,6 +46,7 @@ export default async function UnidadesPage({
       take: POR_PAGINA,
       include: {
         sector: true,
+        tipo: true,
         titularidades: {
           where: { fechaFin: null },
           include: { propietario: { select: { nombre: true } } },
@@ -134,7 +135,7 @@ export default async function UnidadesPage({
                 </Link>
               </td>
               <td className="px-4 py-3">
-                <Badge>{u.tipo}</Badge>
+                <Badge>{u.tipo.nombre}</Badge>
               </td>
               <td className="px-4 py-3">{resp?.propietario.nombre ?? "—"}</td>
               <td className="px-4 py-3 text-center">{u._count.cargos}</td>

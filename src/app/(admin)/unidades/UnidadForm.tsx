@@ -5,13 +5,18 @@ export interface UnidadFormValues {
   sectorId?: string;
   manzana?: string;
   lote?: string;
-  tipo?: string;
+  tipoId?: string;
   areaM2?: string;
   alicuota?: string;
   baseCalculoCuota?: string | null;
   montoFijoCuota?: string;
   estadoOcupacion?: string;
   unidadPrincipalId?: string | null;
+}
+
+export interface TipoOption {
+  id: string;
+  nombre: string;
 }
 
 export interface SectorOption {
@@ -29,6 +34,7 @@ export function UnidadForm({
   action,
   defaultValues = {},
   sectores,
+  tipos,
   unidadesPrincipales,
   codigoActual,
   submitLabel = "Guardar",
@@ -38,6 +44,7 @@ export function UnidadForm({
   action: (formData: FormData) => void | Promise<void>;
   defaultValues?: UnidadFormValues;
   sectores: SectorOption[];
+  tipos: TipoOption[];
   unidadesPrincipales: UnidadPrincipalOption[];
   codigoActual?: string;
   submitLabel?: string;
@@ -126,9 +133,18 @@ export function UnidadForm({
           <label className={labelClass} htmlFor="tipo">
             Tipo
           </label>
-          <select id="tipo" name="tipo" defaultValue={d.tipo ?? "CASA"} className={inputClass}>
-            <option value="CASA">Casa</option>
-            <option value="TERRENO">Terreno sin construir</option>
+          <select
+            id="tipo"
+            name="tipoId"
+            defaultValue={d.tipoId ?? tipos[0]?.id ?? ""}
+            required
+            className={inputClass}
+          >
+            {tipos.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre}
+              </option>
+            ))}
           </select>
         </div>
         <div>

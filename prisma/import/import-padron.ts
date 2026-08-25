@@ -13,7 +13,7 @@
  *
  * El CSV NUNCA se versiona en el repo (contiene datos personales reales).
  */
-import { PrismaClient, TipoUnidad } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { formatearNombrePropio } from "../../src/lib/nombres";
 
@@ -238,6 +238,9 @@ async function limpiarDatosPrevios(): Promise<void> {
 
 async function importar(filas: FilaPadron[]): Promise<void> {
   const sectores = await prisma.sector.findMany();
+  const tipos = await prisma.tipoUnidad.findMany();
+  const tipoCasaId = tipos.find((t) => t.codigo === "CASA")!.id;
+  const tipoTerrenoId = tipos.find((t) => t.codigo === "TERRENO")!.id;
   const sectorId = new Map(sectores.map((s) => [s.codigo, s.id]));
   const propietarioIdPorNombre = new Map<string, string>();
 
@@ -273,14 +276,14 @@ async function importar(filas: FilaPadron[]): Promise<void> {
     const sId = sectorId.get(f.sector);
     if (!sId) continue;
 
-    const tipo: TipoUnidad = TERRENOS_ML.has(f.ml) ? "TERRENO" : "CASA";
+    const tipoId = TERRENOS_ML.has(f.ml) ? tipoTerrenoId : tipoCasaId;
     const unidad = await prisma.unidad.create({
       data: {
         codigo: f.codigo,
         sectorId: sId,
         manzana: f.manzana,
         lote: f.lote,
-        tipo,
+        tipoId,
       },
     });
     creadas++;

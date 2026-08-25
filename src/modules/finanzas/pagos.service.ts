@@ -409,6 +409,8 @@ export interface EditarPagoInput {
   monto?: number;
   /** Id de Archivo del comprobante. Si viene, reemplaza al anterior. */
   voucherArchivoId?: string | null;
+  /** Quita el comprobante actual. Se ignora si además llega uno nuevo. */
+  quitarVoucher?: boolean;
 }
 
 /**
@@ -438,15 +440,23 @@ export async function editarPago(
     data.monto = dec(input.monto);
   }
 
-  // Al reemplazar el comprobante se borra el anterior para no dejar huérfanos.
   const anterior = pago.voucherArchivoId;
+  // Subir uno nuevo manda sobre la casilla de quitar: si el usuario hizo
+  // ambas cosas, lo que quiere es reemplazarlo.
+  const quitar = Boolean(input.quitarVoucher) && !input.voucherArchivoId;
   if (input.voucherArchivoId) {
     data.voucherArchivoId = input.voucherArchivoId;
+  } else if (quitar) {
+    data.voucherArchivoId = null;
   }
 
   await prisma.pago.update({ where: { id: pagoId }, data });
 
-  if (input.voucherArchivoId && anterior && anterior !== input.voucherArchivoId) {
+  // El archivo anterior se borra tanto al reemplazarlo como al quitarlo,
+  // para no dejarlo huérfano ocupando el almacenamiento.
+  const reemplazado =
+    Boolean(input.voucherArchivoId) && anterior !== input.voucherArchivoId;
+  if (anterior && (quitar || reemplazado)) {
     await eliminarArchivo(anterior);
   }
   await audit({
@@ -454,7 +464,15 @@ export async function editarPago(
     accion: "EDITAR_PAGO",
     entidad: "Pago",
     entidadId: pagoId,
-    datosDespues: { medio: input.medio, monto: input.monto },
+    datosDespues: {
+      medio: input.medio,
+      monto: input.monto,
+      comprobante: input.voucherArchivoId
+        ? "reemplazado"
+        : quitar
+          ? "eliminado"
+          : "sin cambios",
+    },
   });
 }
 

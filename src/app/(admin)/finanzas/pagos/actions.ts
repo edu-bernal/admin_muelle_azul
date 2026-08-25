@@ -153,6 +153,7 @@ export async function editarPagoAction(formData: FormData) {
       pagoId,
       {
         voucherArchivoId,
+        quitarVoucher: formData.get("quitarComprobante") === "on",
         medio: medio as MedioPago,
         banco: (formData.get("banco") as string) || null,
         numeroOperacion: (formData.get("numeroOperacion") as string) || null,

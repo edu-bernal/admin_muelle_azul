@@ -140,16 +140,24 @@ export default async function EditarPagoPage({
               Comprobante
             </label>
             {pago.voucherArchivoId && (
-              <p className="mb-2 text-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <a
                   href={`/api/comprobantes/${pago.voucherArchivoId}`}
                   target="_blank"
                   rel="noopener"
-                  className="text-brand hover:underline"
+                  className="text-sm text-brand hover:underline"
                 >
                   Ver comprobante actual
                 </a>
-              </p>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="quitarComprobante"
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  Quitar el comprobante al guardar
+                </label>
+              </div>
             )}
             <input
               id="comprobante"
@@ -161,7 +169,7 @@ export default async function EditarPagoPage({
             <p className="mt-1 text-xs text-slate-400">
               Imagen o PDF, hasta 8 MB.
               {pago.voucherArchivoId
-                ? " Si eliges uno nuevo, reemplaza al actual."
+                ? " Si eliges uno nuevo, reemplaza al actual y el anterior se borra."
                 : ""}
             </p>
           </div>

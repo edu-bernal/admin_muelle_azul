@@ -14,9 +14,22 @@ function carpetaLocal(): string {
   return process.env.COMPROBANTES_DIR ?? join(process.cwd(), "Reportes");
 }
 
+/**
+ * true si hay con qué autenticarse contra Vercel Blob. Un proyecto con el
+ * store conectado NO recibe BLOB_READ_WRITE_TOKEN: usa OIDC, y el SDK toma
+ * el token de la plataforma junto con BLOB_STORE_ID.
+ */
+function hayCredencialesBlob(): boolean {
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+      process.env.BLOB_STORE_ID ||
+      process.env.VERCEL_OIDC_TOKEN,
+  );
+}
+
 /** true si toca guardar en disco en vez de Vercel Blob. */
 function usarDiscoLocal(): boolean {
-  return !process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL;
+  return !hayCredencialesBlob() && !process.env.VERCEL;
 }
 
 function validar(archivo: File): void {
@@ -61,10 +74,10 @@ export async function subirComprobante(
     await writeFile(destino, Buffer.from(await archivo.arrayBuffer()));
     storageKey = destino;
   } else {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    if (!hayCredencialesBlob()) {
       throw new Error(
-        "Falta configurar el almacenamiento de archivos (BLOB_READ_WRITE_TOKEN). " +
-          "Crea el Blob store en Vercel → Storage y vuelve a desplegar.",
+        "Falta configurar el almacenamiento de archivos. Conecta el Blob store " +
+          "al proyecto en Vercel → Storage y vuelve a desplegar.",
       );
     }
     // Privado: los vouchers llevan datos bancarios, así que el archivo no

@@ -104,32 +104,38 @@ export async function guardarTipoAction(formData: FormData) {
   const codigo = normalizarCodigo(String(formData.get("codigo") ?? ""));
   const nombre = String(formData.get("nombre") ?? "").trim();
   const orden = Number(formData.get("orden") ?? 0);
+  // Vacío significa "sin valor propio": la emisión caerá en la tarifa.
+  const valorTexto = String(formData.get("valor") ?? "").trim();
+  const valor = valorTexto === "" ? null : Number(valorTexto);
 
   if (!codigo || !nombre) volver("Código y nombre son obligatorios", true);
+  if (valor !== null && (!Number.isFinite(valor) || valor < 0)) {
+    volver("El valor de la cuota debe ser un número positivo", true);
+  }
 
   try {
     if (id) {
       await prisma.tipoUnidad.update({
         where: { id },
-        data: { nombre, orden: Number.isFinite(orden) ? orden : 0 },
+        data: { nombre, orden: Number.isFinite(orden) ? orden : 0, valor },
       });
       await audit({
         usuarioId: user.userId,
         accion: "EDITAR_TIPO_UNIDAD",
         entidad: "TipoUnidad",
         entidadId: id,
-        datosDespues: { nombre, orden },
+        datosDespues: { nombre, orden, valor },
       });
     } else {
       const creado = await prisma.tipoUnidad.create({
-        data: { codigo, nombre, orden: Number.isFinite(orden) ? orden : 0 },
+        data: { codigo, nombre, orden: Number.isFinite(orden) ? orden : 0, valor },
       });
       await audit({
         usuarioId: user.userId,
         accion: "CREAR_TIPO_UNIDAD",
         entidad: "TipoUnidad",
         entidadId: creado.id,
-        datosDespues: { codigo, nombre, orden },
+        datosDespues: { codigo, nombre, orden, valor },
       });
     }
   } catch (e) {
@@ -274,7 +280,6 @@ export async function guardarTarifaAction(formData: FormData) {
   const desde = String(formData.get("vigenteDesde") ?? "");
   const monto = Number(formData.get("montoMensual"));
   const sectorId = String(formData.get("sectorId") ?? "") || null;
-  const tipoUnidadId = String(formData.get("tipoUnidadId") ?? "") || null;
 
   if (!desde) volver("Indica desde cuándo rige la tarifa", true);
   if (!Number.isFinite(monto) || monto <= 0) volver("El monto debe ser mayor que cero", true);
@@ -284,7 +289,6 @@ export async function guardarTarifaAction(formData: FormData) {
     vigenteDesde: new Date(`${desde.slice(0, 7)}-01T00:00:00Z`),
     montoMensual: monto,
     sectorId,
-    tipoUnidadId,
   };
 
   if (id) {
@@ -318,9 +322,9 @@ export async function eliminarTarifaAction(formData: FormData) {
   if (!tarifa) volver("Tarifa no encontrada", true);
 
   // Sin una tarifa general no se puede emitir la cuota ordinaria.
-  if (tarifa.sectorId === null && tarifa.tipoUnidadId === null) {
+  if (tarifa.sectorId === null) {
     const generales = await prisma.tarifaCuota.count({
-      where: { sectorId: null, tipoUnidadId: null },
+      where: { sectorId: null },
     });
     if (generales <= 1) {
       volver("Debe quedar al menos una tarifa general o no se podrá emitir la cuota ordinaria", true);

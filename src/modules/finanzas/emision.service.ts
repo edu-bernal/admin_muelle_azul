@@ -24,28 +24,41 @@ export interface EmisionPreview {
   yaEmitida: boolean;
 }
 
-/** Determina el monto de la cuota ORDINARIA para una unidad (según tarifa recurrente). */
+/**
+ * Monto de la cuota ORDINARIA para una unidad, de lo más particular a lo más
+ * general:
+ *   1. Monto fijo de la unidad, si tiene base de cálculo FIJO.
+ *   2. Valor del tipo de propiedad, si está configurado en Parámetros.
+ *   3. Tarifa del sector para el período, y en su defecto la general.
+ */
 function montoOrdinarioUnidad(
-  unidad: { baseCalculoCuota: string | null; montoFijoCuota: Prisma.Decimal | null },
-  tarifaGlobal: Prisma.Decimal,
+  unidad: {
+    baseCalculoCuota: string | null;
+    montoFijoCuota: Prisma.Decimal | null;
+    tipo: { valor: Prisma.Decimal | null };
+  },
+  tarifaDelSector: Prisma.Decimal,
 ): Prisma.Decimal {
   if (unidad.baseCalculoCuota === "FIJO" && unidad.montoFijoCuota) {
     return unidad.montoFijoCuota;
   }
-  return tarifaGlobal;
+  if (unidad.tipo.valor !== null) {
+    return unidad.tipo.valor;
+  }
+  return tarifaDelSector;
 }
 
 /**
- * Tarifas en vigor para el período, de la más específica a la más general.
- * Una tarifa puede acotarse por sector, por tipo de propiedad, por ambos, o
- * aplicar a todo el condominio; `tarifaDeUnidad` elige la que corresponda.
+ * Tarifas en vigor para el período. Una tarifa puede acotarse a un sector o
+ * aplicar a todo el condominio; siempre debe existir una general, que es el
+ * último recurso cuando el tipo de propiedad no fija su propio valor.
  */
 async function tarifasVigentes(periodo: Date) {
   const tarifas = await prisma.tarifaCuota.findMany({
     where: { vigenteDesde: { lte: periodo } },
     orderBy: { vigenteDesde: "desc" },
   });
-  if (!tarifas.some((t) => t.sectorId === null && t.tipoUnidadId === null)) {
+  if (!tarifas.some((t) => t.sectorId === null)) {
     throw new Error(
       "No hay una tarifa general vigente para el período. Configúrala en Parámetros del sistema.",
     );
@@ -54,26 +67,16 @@ async function tarifasVigentes(periodo: Date) {
 }
 
 /**
- * Tarifa aplicable a una unidad: gana la coincidencia más específica y, entre
- * varias del mismo nivel, la de vigencia más reciente (ya vienen ordenadas).
+ * Tarifa aplicable a una unidad: gana la del sector y, entre varias, la de
+ * vigencia más reciente (ya vienen ordenadas).
  */
 function tarifaDeUnidad(
-  tarifas: { sectorId: string | null; tipoUnidadId: string | null; montoMensual: Prisma.Decimal }[],
-  unidad: { sectorId: string; tipoId: string },
+  tarifas: { sectorId: string | null; montoMensual: Prisma.Decimal }[],
+  unidad: { sectorId: string },
 ): Prisma.Decimal {
-  const coincide = (
-    t: { sectorId: string | null; tipoUnidadId: string | null },
-    sector: boolean,
-    tipo: boolean,
-  ) =>
-    (sector ? t.sectorId === unidad.sectorId : t.sectorId === null) &&
-    (tipo ? t.tipoUnidadId === unidad.tipoId : t.tipoUnidadId === null);
-
   return (
-    tarifas.find((t) => coincide(t, true, true)) ??
-    tarifas.find((t) => coincide(t, true, false)) ??
-    tarifas.find((t) => coincide(t, false, true)) ??
-    tarifas.find((t) => coincide(t, false, false))!
+    tarifas.find((t) => t.sectorId === unidad.sectorId) ??
+    tarifas.find((t) => t.sectorId === null)!
   ).montoMensual;
 }
 
@@ -89,9 +92,9 @@ async function resolverMontos(
   montoManual: number | undefined,
   unidades: {
     sectorId: string;
-    tipoId: string;
     baseCalculoCuota: string | null;
     montoFijoCuota: Prisma.Decimal | null;
+    tipo: { valor: Prisma.Decimal | null };
   }[],
 ): Promise<Prisma.Decimal[]> {
   if (concepto.codigo === "MANT") {
@@ -123,9 +126,9 @@ export async function previsualizarEmision(
     select: {
       codigo: true,
       sectorId: true,
-      tipoId: true,
       baseCalculoCuota: true,
       montoFijoCuota: true,
+      tipo: { select: { valor: true } },
     },
   });
 
@@ -187,9 +190,9 @@ export async function confirmarEmision(
       id: true,
       codigo: true,
       sectorId: true,
-      tipoId: true,
       baseCalculoCuota: true,
       montoFijoCuota: true,
+      tipo: { select: { valor: true } },
     },
   });
   if (unidades.length === 0) throw new Error("No hay unidades activas.");

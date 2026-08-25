@@ -53,7 +53,7 @@ export default async function ParametrosPage({
     }),
     prisma.tarifaCuota.findMany({
       orderBy: { vigenteDesde: "desc" },
-      include: { sector: true, tipoUnidad: true },
+      include: { sector: true },
     }),
   ]);
 
@@ -194,6 +194,7 @@ export default async function ParametrosPage({
             <tr>
               <th className="px-4 py-3">Código</th>
               <th className="px-4 py-3">Nombre</th>
+              <th className="px-4 py-3 text-right">Cuota mensual</th>
               <th className="px-4 py-3 text-center">Orden</th>
               <th className="px-4 py-3 text-center">Unidades</th>
               <th className="px-4 py-3">Estado</th>
@@ -205,6 +206,13 @@ export default async function ParametrosPage({
             <tr key={t.id}>
               <td className="px-4 py-3 font-medium tabular-nums">{t.codigo}</td>
               <td className="px-4 py-3">{t.nombre}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {t.valor === null ? (
+                  <span className="text-slate-400">Según tarifa</span>
+                ) : (
+                  <span className="font-medium">{formatPEN(t.valor)}</span>
+                )}
+              </td>
               <td className="px-4 py-3 text-center tabular-nums text-slate-500">
                 {t.orden}
               </td>
@@ -271,6 +279,25 @@ export default async function ParametrosPage({
                 placeholder="Cochera"
                 className={inputClass}
               />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="tipo-valor">
+                Cuota mensual (S/)
+              </label>
+              <input
+                id="tipo-valor"
+                name="valor"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={tipoEnEdicion?.valor?.toString() ?? ""}
+                placeholder="Dejar vacío para usar la tarifa"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Monto que se emitirá cada mes a las propiedades de este tipo. Si
+                se deja vacío, se aplica la tarifa del sector o la general.
+              </p>
             </div>
             <div>
               <label className={labelClass} htmlFor="tipo-orden">
@@ -436,7 +463,6 @@ export default async function ParametrosPage({
               <th className="px-4 py-3">Vigente desde</th>
               <th className="px-4 py-3 text-right">Monto mensual</th>
               <th className="px-4 py-3">Sector</th>
-              <th className="px-4 py-3">Tipo de propiedad</th>
               <th className="px-4 py-3">Acción</th>
             </tr>
           }
@@ -451,9 +477,6 @@ export default async function ParametrosPage({
               </td>
               <td className="px-4 py-3 text-slate-500">
                 {t.sector?.nombre ?? "Todos"}
-              </td>
-              <td className="px-4 py-3 text-slate-500">
-                {t.tipoUnidad?.nombre ?? "Todos"}
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -534,27 +557,10 @@ export default async function ParametrosPage({
                 ))}
               </select>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="tarifa-tipo">
-                Tipo de propiedad
-              </label>
-              <select
-                id="tarifa-tipo"
-                name="tipoUnidadId"
-                defaultValue={tarifaEnEdicion?.tipoUnidadId ?? ""}
-                className={inputClass}
-              >
-                <option value="">Todos los tipos</option>
-                {tipos.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
             <p className="text-xs text-slate-400">
-              Gana la tarifa más específica: sector y tipo, luego sector, luego
-              tipo, y por último la general. Siempre debe existir una general.
+              La tarifa de un sector gana sobre la general. Siempre debe existir
+              una general. El monto por tipo de propiedad se define en su
+              propio valor, más arriba.
             </p>
             <div className="flex gap-2">
               <button type="submit" className={buttonClass()}>

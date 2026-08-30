@@ -300,6 +300,8 @@ model Unidad {
   lote              String
   tipoId            String
   tipo              TipoUnidad             @relation(fields: [tipoId], references: [id])
+  /// Fecha de compra de la propiedad por su titular actual.
+  fechaAdquisicion  DateTime?
   areaM2            Decimal?               @db.Decimal(8, 2)
   alicuota          Decimal?               @db.Decimal(7, 4)
   baseCalculoCuota  BaseCalculoCuota?

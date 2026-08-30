@@ -6,6 +6,7 @@ export interface UnidadFormValues {
   manzana?: string;
   lote?: string;
   tipoId?: string;
+  fechaAdquisicion?: string;
   areaM2?: string;
   alicuota?: string;
   baseCalculoCuota?: string | null;
@@ -163,6 +164,22 @@ export function UnidadForm({
             <option value="EN_VENTA">En venta</option>
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass} htmlFor="fechaAdquisicion">
+          Fecha de adquisición
+        </label>
+        <input
+          id="fechaAdquisicion"
+          name="fechaAdquisicion"
+          type="date"
+          defaultValue={d.fechaAdquisicion ?? ""}
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-slate-400">
+          Fecha de compra de la propiedad. Opcional.
+        </p>
       </div>
 
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">

@@ -13,6 +13,7 @@ const unidadSchema = z.object({
   manzana: z.string().min(1, "Manzana requerida"),
   lote: z.string().min(1, "Lote requerido"),
   tipoId: z.string().min(1, "Elige un tipo de propiedad"),
+  fechaAdquisicion: z.string().optional(),
   areaM2: z.string().optional(),
   alicuota: z.string().optional(),
   baseCalculoCuota: z.enum(["ALICUOTA", "FIJO", "M2"]).optional(),
@@ -27,6 +28,7 @@ function parseForm(formData: FormData) {
     manzana: formData.get("manzana"),
     lote: formData.get("lote"),
     tipoId: formData.get("tipoId") ?? "",
+    fechaAdquisicion: formData.get("fechaAdquisicion") || undefined,
     areaM2: formData.get("areaM2") || undefined,
     alicuota: formData.get("alicuota") || undefined,
     baseCalculoCuota: formData.get("baseCalculoCuota") || undefined,
@@ -42,6 +44,9 @@ function toData(d: z.infer<typeof unidadSchema>) {
     manzana: d.manzana.trim(),
     lote: d.lote.trim(),
     tipoId: d.tipoId,
+    fechaAdquisicion: d.fechaAdquisicion
+      ? new Date(`${d.fechaAdquisicion}T00:00:00Z`)
+      : null,
     areaM2: d.areaM2 ? new Prisma.Decimal(d.areaM2) : null,
     alicuota: d.alicuota ? new Prisma.Decimal(d.alicuota) : null,
     baseCalculoCuota: d.baseCalculoCuota ?? null,

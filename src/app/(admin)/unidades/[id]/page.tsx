@@ -106,6 +106,14 @@ export default async function UnidadDetallePage({
               </dd>
             </div>
             <div>
+              <dt className="text-slate-400">Fecha de adquisición</dt>
+              <dd>
+                {unidad.fechaAdquisicion
+                  ? unidad.fechaAdquisicion.toISOString().slice(0, 10)
+                  : "—"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-slate-400">Estado de ocupación</dt>
               <dd>
                 <Badge>{unidad.estadoOcupacion}</Badge>

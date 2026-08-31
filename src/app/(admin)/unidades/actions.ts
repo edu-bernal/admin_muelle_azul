@@ -147,3 +147,123 @@ export async function cambiarEstadoUnidad(formData: FormData) {
   revalidatePath(`/unidades/${id}`);
   redirect(`/unidades/${id}?ok=1`);
 }
+
+/**
+ * Agrega una cochera a una propiedad.
+ *
+ * La cochera se crea como una unidad más de tipo COCHERA, vinculada a la
+ * propiedad principal. Hereda su sector y sus titularidades vigentes, para que
+ * los cargos que genere pertenezcan al mismo propietario. Como toda unidad
+ * activa entra en la emisión, cobrará la cuota del tipo COCHERA definida en
+ * Parámetros del sistema.
+ */
+export async function agregarCochera(formData: FormData) {
+  const user = await requirePermission("unidades.gestionar");
+  const principalId = String(formData.get("unidadId") ?? "");
+  const descripcion = String(formData.get("descripcion") ?? "").trim();
+  if (!principalId) redirect("/unidades?error=Propiedad%20inv%C3%A1lida");
+
+  const principal = await prisma.unidad.findUnique({
+    where: { id: principalId },
+    include: {
+      unidadesVinculadas: { select: { id: true } },
+      titularidades: { where: { fechaFin: null } },
+    },
+  });
+  if (!principal) redirect("/unidades?error=Propiedad%20no%20encontrada");
+
+  const tipoCochera = await prisma.tipoUnidad.findUnique({
+    where: { codigo: "COCHERA" },
+  });
+  if (!tipoCochera) {
+    redirect(
+      `/unidades/${principalId}?error=${encodeURIComponent(
+        "Falta el tipo COCHERA. Créalo en Parámetros del sistema.",
+      )}`,
+    );
+  }
+
+  // El correlativo se calcula sobre las cocheras ya existentes de esta
+  // propiedad, para que el código no choque al agregar y quitar.
+  const existentes = await prisma.unidad.count({
+    where: { unidadPrincipalId: principalId, tipoId: tipoCochera.id },
+  });
+  let numero = existentes + 1;
+  let codigo = `${principal.codigo}-C${numero}`;
+  while (await prisma.unidad.findUnique({ where: { codigo }, select: { id: true } })) {
+    numero++;
+    codigo = `${principal.codigo}-C${numero}`;
+  }
+
+  const cochera = await prisma.unidad.create({
+    data: {
+      codigo,
+      sectorId: principal.sectorId,
+      manzana: principal.manzana,
+      lote: `${principal.lote}-C${numero}`,
+      tipoId: tipoCochera.id,
+      unidadPrincipalId: principalId,
+      estadoOcupacion: principal.estadoOcupacion,
+    },
+  });
+
+  // Mismos titulares que la propiedad: si no, sus cargos no serían de nadie.
+  if (principal.titularidades.length > 0) {
+    await prisma.propiedadTitularidad.createMany({
+      data: principal.titularidades.map((t) => ({
+        propietarioId: t.propietarioId,
+        unidadId: cochera.id,
+        porcentaje: t.porcentaje,
+        esResponsablePago: t.esResponsablePago,
+      })),
+    });
+  }
+
+  await audit({
+    usuarioId: user.userId,
+    accion: "AGREGAR_COCHERA",
+    entidad: "Unidad",
+    entidadId: cochera.id,
+    datosDespues: { codigo, propiedad: principal.codigo, descripcion },
+  });
+
+  revalidatePath(`/unidades/${principalId}`);
+  redirect(`/unidades/${principalId}?ok=${encodeURIComponent(`Cochera ${codigo} agregada`)}`);
+}
+
+/** Elimina una cochera. Solo si no llegó a generar cargos. */
+export async function eliminarCochera(formData: FormData) {
+  const user = await requirePermission("unidades.gestionar");
+  const cocheraId = String(formData.get("cocheraId") ?? "");
+  const principalId = String(formData.get("unidadId") ?? "");
+  if (!cocheraId) redirect(`/unidades/${principalId}?error=Cochera%20inv%C3%A1lida`);
+
+  const cochera = await prisma.unidad.findUnique({
+    where: { id: cocheraId },
+    include: { _count: { select: { cargos: true } } },
+  });
+  if (!cochera) redirect(`/unidades/${principalId}?error=Cochera%20no%20encontrada`);
+
+  // Con cargos emitidos hay historia contable: se inactiva, no se borra.
+  if (cochera._count.cargos > 0) {
+    redirect(
+      `/unidades/${principalId}?error=${encodeURIComponent(
+        `La cochera ${cochera.codigo} ya tiene ${cochera._count.cargos} cargos emitidos. Inactívala desde su ficha en vez de eliminarla.`,
+      )}`,
+    );
+  }
+
+  await prisma.propiedadTitularidad.deleteMany({ where: { unidadId: cocheraId } });
+  await prisma.unidad.delete({ where: { id: cocheraId } });
+
+  await audit({
+    usuarioId: user.userId,
+    accion: "ELIMINAR_COCHERA",
+    entidad: "Unidad",
+    entidadId: cocheraId,
+    datosAntes: { codigo: cochera.codigo },
+  });
+
+  revalidatePath(`/unidades/${principalId}`);
+  redirect(`/unidades/${principalId}?ok=${encodeURIComponent(`Cochera ${cochera.codigo} eliminada`)}`);
+}

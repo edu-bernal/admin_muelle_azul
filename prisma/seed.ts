@@ -74,6 +74,7 @@ async function seedTiposUnidad() {
   const tipos = [
     { codigo: "CASA", nombre: "Casa", orden: 1 },
     { codigo: "TERRENO", nombre: "Terreno sin construir", orden: 2 },
+    { codigo: "COCHERA", nombre: "Cochera", orden: 3 },
   ];
   for (const t of tipos) {
     await prisma.tipoUnidad.upsert({

@@ -9,8 +9,10 @@ import {
   Badge,
   LinkButton,
   buttonClass,
+  inputClass,
+  labelClass,
 } from "@/components/ui";
-import { cambiarEstadoUnidad } from "../actions";
+import { cambiarEstadoUnidad, agregarCochera, eliminarCochera } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +38,16 @@ export default async function UnidadDetallePage({
       sector: true,
       tipo: true,
       unidadPrincipal: { select: { id: true, codigo: true } },
-      unidadesVinculadas: { select: { id: true, codigo: true } },
+      unidadesVinculadas: {
+        select: {
+          id: true,
+          codigo: true,
+          activo: true,
+          tipo: { select: { codigo: true, nombre: true, valor: true } },
+          _count: { select: { cargos: true } },
+        },
+        orderBy: { codigo: "asc" },
+      },
       titularidades: {
         include: { propietario: { select: { id: true, nombre: true } } },
         orderBy: { fechaInicio: "desc" },
@@ -50,6 +61,14 @@ export default async function UnidadDetallePage({
     },
   });
   if (!unidad) notFound();
+
+  const cocheras = unidad.unidadesVinculadas.filter(
+    (u) => u.tipo.codigo === "COCHERA",
+  );
+  const otrasVinculadas = unidad.unidadesVinculadas.filter(
+    (u) => u.tipo.codigo !== "COCHERA",
+  );
+  const esCochera = unidad.tipo.codigo === "COCHERA";
 
   const activas = unidad.titularidades.filter((t) => !t.fechaFin);
   const historicas = unidad.titularidades.filter((t) => t.fechaFin);
@@ -73,7 +92,7 @@ export default async function UnidadDetallePage({
 
       {sp.ok && (
         <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          ✅ Operación realizada.
+          ✅ {sp.ok === "1" ? "Operación realizada." : sp.ok}
         </div>
       )}
       {sp.error && (
@@ -156,11 +175,11 @@ export default async function UnidadDetallePage({
                 )}
               </dd>
             </div>
-            {unidad.unidadesVinculadas.length > 0 && (
+            {otrasVinculadas.length > 0 && (
               <div>
                 <dt className="text-slate-400">Unidades vinculadas</dt>
                 <dd className="space-x-2">
-                  {unidad.unidadesVinculadas.map((u) => (
+                  {otrasVinculadas.map((u) => (
                     <Link
                       key={u.id}
                       href={`/unidades/${u.id}`}
@@ -235,6 +254,83 @@ export default async function UnidadDetallePage({
               unidad&quot;.
             </p>
           </Card>
+
+          {!esCochera && (
+            <Card>
+              <h2 className="mb-3 text-lg font-semibold text-slate-900">
+                Cocheras ({cocheras.length})
+              </h2>
+
+              {cocheras.length === 0 ? (
+                <p className="mb-4 text-sm text-slate-500">
+                  Esta propiedad no tiene cocheras registradas.
+                </p>
+              ) : (
+                <ul className="mb-4 divide-y divide-slate-100">
+                  {cocheras.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex flex-wrap items-center justify-between gap-3 py-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/unidades/${c.id}`}
+                          className="font-medium text-brand hover:underline"
+                        >
+                          {c.codigo}
+                        </Link>
+                        <Badge>{c.activo ? "ACTIVA" : "INACTIVA"}</Badge>
+                        <span className="text-xs text-slate-400">
+                          {c._count.cargos} cargos ·{" "}
+                          {c.tipo.valor !== null
+                            ? `${formatPEN(c.tipo.valor)} al mes`
+                            : "según tarifa"}
+                        </span>
+                      </div>
+                      <form action={eliminarCochera}>
+                        <input type="hidden" name="cocheraId" value={c.id} />
+                        <input type="hidden" name="unidadId" value={id} />
+                        <button
+                          type="submit"
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                        >
+                          Eliminar
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form
+                action={agregarCochera}
+                className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
+              >
+                <input type="hidden" name="unidadId" value={id} />
+                <div className="min-w-56 flex-1">
+                  <label className={labelClass} htmlFor="descripcion">
+                    Referencia (opcional)
+                  </label>
+                  <input
+                    id="descripcion"
+                    name="descripcion"
+                    placeholder="Ej. Cochera techada, lado izquierdo"
+                    className={inputClass}
+                  />
+                </div>
+                <button type="submit" className={buttonClass()}>
+                  Agregar cochera
+                </button>
+              </form>
+
+              <p className="mt-3 text-xs text-slate-400">
+                Cada cochera es una unidad vinculada a esta propiedad y hereda
+                sus propietarios. Al estar activa entra en la emisión mensual y
+                cobra la cuota del tipo Cochera, que se define en Parámetros del
+                sistema.
+              </p>
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-3 text-lg font-semibold text-slate-900">

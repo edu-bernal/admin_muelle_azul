@@ -9,7 +9,7 @@ import {
   labelClass,
   buttonClass,
 } from "@/components/ui";
-import { confirmarEmisionAction } from "./actions";
+import { confirmarEmisionAction, eliminarEmisionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +39,21 @@ export default async function EmisionPage({
     where: { codigo: { in: CONCEPTOS_EMISION }, activo: true },
   });
 
+  const emisionesRaw = await prisma.emision.findMany({
+    include: { conceptoCobro: true, _count: { select: { cargos: true } } },
+    orderBy: { periodo: "desc" },
+  });
+  // Cuántos cargos de cada emisión ya recibieron pagos: es la consecuencia que
+  // el usuario necesita ver antes de borrar.
+  const emisiones = await Promise.all(
+    emisionesRaw.map(async (e) => ({
+      ...e,
+      cargosConPago: await prisma.cargo.count({
+        where: { emisionId: e.id, aplicaciones: { some: {} } },
+      }),
+    })),
+  );
+
   let preview = null;
   let previewError: string | null = null;
   if (tienePreview) {
@@ -64,9 +79,15 @@ export default async function EmisionPage({
 
       {sp.ok && (
         <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          ✅ Emisión confirmada: {sp.ok} cargos por un total de{" "}
-          {formatPEN(sp.total ?? 0)}. Se emitirá el recibo correspondiente en
-          cuanto se registre el pago de cada cargo.
+          {sp.total ? (
+            <>
+              ✅ Emisión confirmada: {sp.ok} cargos por un total de{" "}
+              {formatPEN(sp.total)}. Se emitirá el recibo correspondiente en
+              cuanto se registre el pago de cada cargo.
+            </>
+          ) : (
+            <>✅ {sp.ok}</>
+          )}
         </div>
       )}
       {sp.error && (
@@ -171,8 +192,8 @@ export default async function EmisionPage({
               </p>
               {preview.yaEmitida && (
                 <p className="mt-1 text-sm text-amber-600">
-                  ⚠ Ya existe una emisión para este concepto y período. Anúlala
-                  antes de re-emitir.
+                  ⚠ Ya existe una emisión para este concepto y período.
+                  Elimínala en la lista de abajo antes de re-emitir.
                 </p>
               )}
             </div>
@@ -227,6 +248,78 @@ export default async function EmisionPage({
           seed.
         </p>
       )}
+
+      <div className="mt-10">
+        <h2 className="mb-3 text-lg font-semibold text-slate-900">
+          Emisiones realizadas ({emisiones.length})
+        </h2>
+        <Table
+          head={
+            <tr>
+              <th className="px-4 py-3">Período</th>
+              <th className="px-4 py-3">Concepto</th>
+              <th className="px-4 py-3 text-center">Cuotas</th>
+              <th className="px-4 py-3 text-right">Total emitido</th>
+              <th className="px-4 py-3 text-center">Con pagos</th>
+              <th className="px-4 py-3">Eliminar todas</th>
+            </tr>
+          }
+        >
+          {emisiones.map((e) => (
+            <tr key={e.id}>
+              <td className="px-4 py-3 font-medium tabular-nums">
+                {e.periodo.toISOString().slice(0, 7)}
+              </td>
+              <td className="px-4 py-3">{e.conceptoCobro.nombre}</td>
+              <td className="px-4 py-3 text-center tabular-nums">
+                {e._count.cargos}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {formatPEN(e.totalEmitido)}
+              </td>
+              <td className="px-4 py-3 text-center tabular-nums">
+                {e.cargosConPago > 0 ? (
+                  <span className="font-medium text-amber-700">
+                    {e.cargosConPago}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">0</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                <form action={eliminarEmisionAction} className="flex gap-1">
+                  <input type="hidden" name="emisionId" value={e.id} />
+                  <input
+                    name="motivo"
+                    placeholder="Motivo"
+                    required
+                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                  >
+                    Eliminar
+                  </button>
+                </form>
+              </td>
+            </tr>
+          ))}
+          {emisiones.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                Aún no se ha emitido ninguna cuota.
+              </td>
+            </tr>
+          )}
+        </Table>
+        <p className="mt-3 max-w-3xl text-xs text-slate-400">
+          Eliminar una emisión borra <strong>todas</strong> sus cuotas de golpe.
+          Si alguna ya recibió pagos, lo aplicado vuelve al saldo a favor del
+          propietario, de modo que el dinero no se pierde y se descontará al
+          re-emitir el período. Los pagos y sus recibos se conservan.
+        </p>
+      </div>
     </>
   );
 }

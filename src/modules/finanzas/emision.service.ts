@@ -180,7 +180,7 @@ export async function confirmarEmision(
   });
   if (existente && existente.estado !== "ANULADA") {
     throw new Error(
-      "Ya existe una emisión para este concepto y período. Anúlela antes de re-emitir.",
+      "Ya existe una emisión para este concepto y período. Elimínala antes de re-emitir.",
     );
   }
 
@@ -291,4 +291,115 @@ export async function emitirCargoIndividual(params: {
     return c;
   });
   return cargo.id;
+}
+
+export interface EmisionEliminada {
+  periodo: string;
+  concepto: string;
+  cargosEliminados: number;
+  pagosDevueltos: number;
+  montoDevuelto: number;
+}
+
+/**
+ * Elimina una emisión completa con todos sus cargos.
+ *
+ * El punto delicado son los cargos que ya recibieron pagos: borrarlos sin más
+ * haría desaparecer dinero real del sistema. Por eso lo aplicado se devuelve
+ * al saldo a favor del propietario, que es de donde saldrá cuando se re-emita
+ * el período corregido. El pago en sí no se toca: sigue registrado con su
+ * recibo, solo deja de estar imputado a un cargo que ya no existe.
+ */
+export async function eliminarEmision(
+  emisionId: string,
+  motivo: string,
+  usuarioId?: string | null,
+): Promise<EmisionEliminada> {
+  return prisma.$transaction(async (tx) => {
+    const emision = await tx.emision.findUnique({
+      where: { id: emisionId },
+      include: {
+        conceptoCobro: true,
+        cargos: {
+          include: {
+            aplicaciones: { include: { pago: true } },
+            cargosDerivados: { select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!emision) throw new Error("Emisión no encontrada");
+
+    // Un cargo que originó otro (por ejemplo una multa recargada) no se puede
+    // borrar sin dejar huérfano al derivado.
+    const conDerivados = emision.cargos.filter((c) => c.cargosDerivados.length > 0);
+    if (conDerivados.length > 0) {
+      throw new Error(
+        `No se puede eliminar: ${conDerivados.length} cargos originaron otros cargos. Anúlalos primero.`,
+      );
+    }
+
+    // Lo aplicado vuelve al saldo a favor de quien pagó.
+    const devueltoPorPropietario = new Map<string, Prisma.Decimal>();
+    let pagosDevueltos = 0;
+    for (const cargo of emision.cargos) {
+      for (const ap of cargo.aplicaciones) {
+        const previo = devueltoPorPropietario.get(ap.pago.propietarioId) ?? dec(0);
+        devueltoPorPropietario.set(
+          ap.pago.propietarioId,
+          previo.plus(ap.montoAplicado),
+        );
+        pagosDevueltos++;
+      }
+    }
+
+    let montoDevuelto = dec(0);
+    for (const [propietarioId, monto] of devueltoPorPropietario) {
+      montoDevuelto = montoDevuelto.plus(monto);
+      const saldo = await tx.saldoFavor.upsert({
+        where: { propietarioId },
+        create: { propietarioId, montoDisponible: monto },
+        update: { montoDisponible: { increment: monto } },
+      });
+      await tx.saldoFavorMovimiento.create({
+        data: { saldoFavorId: saldo.id, monto, signo: 1 },
+      });
+    }
+
+    const cargoIds = emision.cargos.map((c) => c.id);
+    await tx.aplicacionPago.deleteMany({ where: { cargoId: { in: cargoIds } } });
+    await tx.cargo.deleteMany({ where: { id: { in: cargoIds } } });
+
+    const periodo = emision.periodo.toISOString().slice(0, 7);
+    await audit(
+      {
+        usuarioId,
+        accion: "ELIMINAR_EMISION",
+        entidad: "Emision",
+        entidadId: emisionId,
+        datosAntes: {
+          periodo,
+          concepto: emision.conceptoCobro.codigo,
+          cargos: cargoIds.length,
+          totalEmitido: emision.totalEmitido.toString(),
+        },
+        datosDespues: {
+          motivo,
+          pagosDevueltos,
+          montoDevuelto: montoDevuelto.toString(),
+        },
+      },
+      tx,
+    );
+
+    await tx.emision.delete({ where: { id: emisionId } });
+
+    return {
+      periodo,
+      concepto: emision.conceptoCobro.nombre,
+      cargosEliminados: cargoIds.length,
+      pagosDevueltos,
+      montoDevuelto: montoDevuelto.toNumber(),
+    };
+  });
 }

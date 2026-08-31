@@ -13,6 +13,7 @@ const unidadSchema = z.object({
   manzana: z.string().min(1, "Manzana requerida"),
   lote: z.string().min(1, "Lote requerido"),
   tipoId: z.string().min(1, "Elige un tipo de propiedad"),
+  referencia: z.string().optional(),
   fechaAdquisicion: z.string().optional(),
   areaM2: z.string().optional(),
   alicuota: z.string().optional(),
@@ -28,6 +29,7 @@ function parseForm(formData: FormData) {
     manzana: formData.get("manzana"),
     lote: formData.get("lote"),
     tipoId: formData.get("tipoId") ?? "",
+    referencia: formData.get("referencia") || undefined,
     fechaAdquisicion: formData.get("fechaAdquisicion") || undefined,
     areaM2: formData.get("areaM2") || undefined,
     alicuota: formData.get("alicuota") || undefined,
@@ -44,6 +46,7 @@ function toData(d: z.infer<typeof unidadSchema>) {
     manzana: d.manzana.trim(),
     lote: d.lote.trim(),
     tipoId: d.tipoId,
+    referencia: d.referencia?.trim() || null,
     fechaAdquisicion: d.fechaAdquisicion
       ? new Date(`${d.fechaAdquisicion}T00:00:00Z`)
       : null,
@@ -160,7 +163,7 @@ export async function cambiarEstadoUnidad(formData: FormData) {
 export async function agregarCochera(formData: FormData) {
   const user = await requirePermission("unidades.gestionar");
   const principalId = String(formData.get("unidadId") ?? "");
-  const descripcion = String(formData.get("descripcion") ?? "").trim();
+  const referencia = String(formData.get("referencia") ?? "").trim();
   if (!principalId) redirect("/unidades?error=Propiedad%20inv%C3%A1lida");
 
   const principal = await prisma.unidad.findUnique({
@@ -204,6 +207,7 @@ export async function agregarCochera(formData: FormData) {
       tipoId: tipoCochera.id,
       unidadPrincipalId: principalId,
       estadoOcupacion: principal.estadoOcupacion,
+      referencia: referencia || null,
     },
   });
 
@@ -224,7 +228,7 @@ export async function agregarCochera(formData: FormData) {
     accion: "AGREGAR_COCHERA",
     entidad: "Unidad",
     entidadId: cochera.id,
-    datosDespues: { codigo, propiedad: principal.codigo, descripcion },
+    datosDespues: { codigo, propiedad: principal.codigo, referencia },
   });
 
   revalidatePath(`/unidades/${principalId}`);

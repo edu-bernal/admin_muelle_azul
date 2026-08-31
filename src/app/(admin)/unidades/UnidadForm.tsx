@@ -6,6 +6,7 @@ export interface UnidadFormValues {
   manzana?: string;
   lote?: string;
   tipoId?: string;
+  referencia?: string;
   fechaAdquisicion?: string;
   areaM2?: string;
   alicuota?: string;
@@ -164,6 +165,19 @@ export function UnidadForm({
             <option value="EN_VENTA">En venta</option>
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass} htmlFor="referencia">
+          Referencia
+        </label>
+        <input
+          id="referencia"
+          name="referencia"
+          defaultValue={d.referencia ?? ""}
+          placeholder="Nota para distinguir la unidad"
+          className={inputClass}
+        />
       </div>
 
       <div>

@@ -52,6 +52,7 @@ export default async function EditarUnidadPage({
             manzana: unidad.manzana,
             lote: unidad.lote,
             tipoId: unidad.tipoId,
+            referencia: unidad.referencia ?? "",
             fechaAdquisicion:
               unidad.fechaAdquisicion?.toISOString().slice(0, 10) ?? "",
             areaM2: unidad.areaM2?.toString() ?? "",

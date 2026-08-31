@@ -43,6 +43,7 @@ export default async function UnidadDetallePage({
           id: true,
           codigo: true,
           activo: true,
+          referencia: true,
           tipo: { select: { codigo: true, nombre: true, valor: true } },
           _count: { select: { cargos: true } },
         },
@@ -124,6 +125,12 @@ export default async function UnidadDetallePage({
                 <Badge>{unidad.tipo.nombre}</Badge>
               </dd>
             </div>
+            {unidad.referencia && (
+              <div>
+                <dt className="text-slate-400">Referencia</dt>
+                <dd>{unidad.referencia}</dd>
+              </div>
+            )}
             <div>
               <dt className="text-slate-400">Fecha de adquisición</dt>
               <dd>
@@ -279,6 +286,11 @@ export default async function UnidadDetallePage({
                         >
                           {c.codigo}
                         </Link>
+                        {c.referencia && (
+                          <span className="text-sm text-slate-600">
+                            {c.referencia}
+                          </span>
+                        )}
                         <Badge>{c.activo ? "ACTIVA" : "INACTIVA"}</Badge>
                         <span className="text-xs text-slate-400">
                           {c._count.cargos} cargos ·{" "}
@@ -308,12 +320,12 @@ export default async function UnidadDetallePage({
               >
                 <input type="hidden" name="unidadId" value={id} />
                 <div className="min-w-56 flex-1">
-                  <label className={labelClass} htmlFor="descripcion">
+                  <label className={labelClass} htmlFor="referencia">
                     Referencia (opcional)
                   </label>
                   <input
-                    id="descripcion"
-                    name="descripcion"
+                    id="referencia"
+                    name="referencia"
                     placeholder="Ej. Cochera techada, lado izquierdo"
                     className={inputClass}
                   />

@@ -12,7 +12,12 @@ import {
   inputClass,
   labelClass,
 } from "@/components/ui";
-import { cambiarEstadoUnidad, agregarCochera, eliminarCochera } from "../actions";
+import {
+  cambiarEstadoUnidad,
+  agregarCochera,
+  eliminarCochera,
+  editarCargoUnidad,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -55,13 +60,19 @@ export default async function UnidadDetallePage({
       },
       cargos: {
         where: { estado: { in: ["PENDIENTE", "PARCIAL"] } },
-        include: { conceptoCobro: true },
+        include: { conceptoCobro: { select: { id: true, nombre: true } } },
         orderBy: { fechaVencimiento: "asc" },
         take: 10,
       },
     },
   });
   if (!unidad) notFound();
+
+  const conceptos = await prisma.conceptoCobro.findMany({
+    where: { activo: true },
+    orderBy: { nombre: "asc" },
+    select: { id: true, nombre: true },
+  });
 
   const cocheras = unidad.unidadesVinculadas.filter(
     (u) => u.tipo.codigo === "COCHERA",
@@ -352,32 +363,83 @@ export default async function UnidadDetallePage({
               head={
                 <tr>
                   <th className="px-4 py-3">Concepto</th>
+                  <th className="px-4 py-3">Descripción</th>
                   <th className="px-4 py-3">Vence</th>
-                  <th className="px-4 py-3 text-right">Monto</th>
+                  <th className="px-4 py-3 text-right">Monto (S/)</th>
                   <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Guardar</th>
                 </tr>
               }
             >
               {unidad.cargos.map((c) => (
                 <tr key={c.id}>
-                  <td className="px-4 py-3">{c.descripcion}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      name="conceptoCobroId"
+                      form={`cargo-${c.id}`}
+                      defaultValue={c.conceptoCobroId}
+                      className="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                    >
+                      {conceptos.map((cc) => (
+                        <option key={cc.id} value={cc.id}>
+                          {cc.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      name="descripcion"
+                      form={`cargo-${c.id}`}
+                      defaultValue={c.descripcion}
+                      className="w-56 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-slate-500">
                     {c.fechaVencimiento.toISOString().slice(0, 10)}
                   </td>
-                  <td className="px-4 py-3 text-right">{formatPEN(c.monto)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <input
+                      name="monto"
+                      form={`cargo-${c.id}`}
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      defaultValue={c.monto.toString()}
+                      className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <Badge>{c.estado}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <form id={`cargo-${c.id}`} action={editarCargoUnidad}>
+                      <input type="hidden" name="cargoId" value={c.id} />
+                      <input type="hidden" name="unidadId" value={id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        Guardar
+                      </button>
+                    </form>
                   </td>
                 </tr>
               ))}
               {unidad.cargos.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                     Sin cargos pendientes.
                   </td>
                 </tr>
               )}
             </Table>
+            <p className="mt-3 text-xs text-slate-400">
+              Cambiar el monto de una cuota altera la deuda del propietario. No
+              se puede bajar por debajo de lo que ya se le aplicó en pagos: para
+              eso hay que anular o eliminar antes el pago.
+            </p>
           </Card>
 
           {historicas.length > 0 && (

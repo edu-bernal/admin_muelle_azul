@@ -19,6 +19,7 @@ export function PropietarioCombobox({
   label = "Propietario",
   defaultSelectedId = "",
   onChange,
+  required = true,
 }: {
   propietarios: PropietarioOption[];
   name?: string;
@@ -26,6 +27,8 @@ export function PropietarioCombobox({
   defaultSelectedId?: string;
   /** Avisa del propietario elegido ("" al limpiar la búsqueda). */
   onChange?: (propietarioId: string) => void;
+  /** false donde el propietario es opcional, como el alta de personal. */
+  required?: boolean;
 }) {
   const inicial = defaultSelectedId
     ? propietarios.find((p) => p.id === defaultSelectedId)
@@ -79,7 +82,7 @@ export function PropietarioCombobox({
         id={inputId}
         type="text"
         autoComplete="off"
-        required
+        required={required}
         placeholder="Busca por nombre, apellido o N° de propiedad…"
         className={inputClass}
         value={query}

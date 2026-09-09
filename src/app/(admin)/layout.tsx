@@ -97,6 +97,9 @@ export default async function AdminLayout({
                 Sistema
               </p>
               <NavLink href="/parametros" icon="⚙️">Parámetros</NavLink>
+              {can(user, "usuarios.gestionar") && (
+                <NavLink href="/usuarios" icon="🔑">Usuarios y accesos</NavLink>
+              )}
             </>
           )}
         </nav>

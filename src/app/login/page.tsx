@@ -13,7 +13,7 @@ const mensajes: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; activado?: string }>;
 }) {
   const session = await getSession();
   if (session) {
@@ -21,7 +21,7 @@ export default async function LoginPage({
       ROLES_ADMIN.includes(session.rol as RolCodigo) ? "/dashboard" : "/portal",
     );
   }
-  const { error } = await searchParams;
+  const { error, activado } = await searchParams;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-sky-100 via-slate-50 to-slate-100 p-4">
@@ -36,6 +36,12 @@ export default async function LoginPage({
           action={loginAction}
           className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
         >
+          {activado && (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              Tu acceso quedó activado. Entra con tu correo y la contraseña que
+              acabas de crear.
+            </p>
+          )}
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
               {mensajes[error] ?? "Ocurrió un error."}

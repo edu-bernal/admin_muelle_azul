@@ -45,7 +45,20 @@ export async function crearAccesoAction(formData: FormData) {
 
   // Un rol de propietario sin propietario vinculado no vería nada suyo.
   if ((rol.codigo === "PROPIETARIO" || rol.codigo === "INQUILINO") && !propietarioId) {
-    volver(`El rol ${rol.nombre} necesita un propietario vinculado`, true);
+    volver(
+      `El rol ${rol.nombre} necesita un propietario vinculado: escribe el nombre o el N° de propiedad y elígelo de la lista que aparece debajo del campo`,
+      true,
+    );
+  }
+
+  // Se comprueba antes de crear para poder decir de quién es el correo y qué
+  // hacer: el choque de la restricción única solo diría "no se pudo crear".
+  const repetido = await prisma.usuario.findUnique({ where: { email } });
+  if (repetido) {
+    volver(
+      `El correo ${email} ya tiene acceso, a nombre de ${repetido.nombreCompleto}. Para reenviarle el enlace usa "Nueva invitación" en la tabla.`,
+      true,
+    );
   }
 
   const invitacion = nuevaInvitacion();
@@ -62,11 +75,16 @@ export async function crearAccesoAction(formData: FormData) {
       },
     });
   } catch (e) {
-    const msg =
+    // El detalle acompaña al mensaje: sin él, un fallo de base de datos y uno
+    // de datos se ven igual y no hay por dónde empezar a mirar.
+    const detalle =
+      e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : "";
+    volver(
       e instanceof Error && e.message.includes("Unique")
         ? `Ya existe un acceso con el correo ${email}`
-        : "No se pudo crear el acceso";
-    volver(msg, true);
+        : `No se pudo crear el acceso — ${(detalle ?? "").slice(0, 160)}`,
+      true,
+    );
   }
 
   await audit({

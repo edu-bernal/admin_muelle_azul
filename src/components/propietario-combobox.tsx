@@ -13,6 +13,18 @@ function etiqueta(p: PropietarioOption) {
   return p.nombre + (p.unidades.length ? ` — ${p.unidades.join(", ")}` : "");
 }
 
+/**
+ * Deja el texto comparable: sin tildes y en minúsculas. El padrón guarda los
+ * nombres tal como vinieron ("García", "Muñoz") y nadie escribe las tildes al
+ * buscar.
+ */
+function normalizar(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
 export function PropietarioCombobox({
   propietarios,
   name = "propietarioId",
@@ -37,18 +49,33 @@ export function PropietarioCombobox({
   const [selectedId, setSelectedId] = useState(inicial?.id ?? "");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
+    // Cada palabra buscada debe aparecer en el nombre o en alguna propiedad,
+    // sin importar el orden: "garcia fernando" encuentra a "Fernando García",
+    // y "garcia c_6" acota al que además tiene esa propiedad.
+    const palabras = normalizar(query).split(/\s+/).filter(Boolean);
+    if (!palabras.length) return [];
     return propietarios
-      .filter(
-        (p) =>
-          p.nombre.toLowerCase().includes(q) ||
-          p.unidades.some((u) => u.toLowerCase().includes(q)),
-      )
+      .filter((p) => {
+        const texto = normalizar(`${p.nombre} ${p.unidades.join(" ")}`);
+        return palabras.every((w) => texto.includes(w));
+      })
       .slice(0, 15);
   }, [query, propietarios]);
+
+  // El valor que viaja al servidor es el id oculto, no lo escrito. Sin esta
+  // comprobación, teclear un nombre sin elegirlo de la lista enviaba el
+  // formulario vacío y el error aparecía recién en el servidor.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const falta = required ? !selectedId : Boolean(query.trim()) && !selectedId;
+    el.setCustomValidity(
+      falta ? "Elige un propietario de la lista de sugerencias." : "",
+    );
+  }, [selectedId, query, required]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -80,6 +107,7 @@ export function PropietarioCombobox({
       </label>
       <input
         id={inputId}
+        ref={inputRef}
         type="text"
         autoComplete="off"
         required={required}

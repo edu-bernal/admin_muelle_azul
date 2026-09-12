@@ -35,8 +35,11 @@ export default async function UsuariosPage({
       orderBy: [{ estado: "asc" }, { nombreCompleto: "asc" }],
     }),
     prisma.rol.findMany({ orderBy: { nombre: "asc" } }),
+    // Todos los propietarios activos, tengan o no una titularidad vigente: un
+    // padrón con la titularidad incompleta dejaba a esa persona fuera del
+    // buscador y sin forma de darle acceso.
     prisma.propietario.findMany({
-      where: { activo: true, titularidades: { some: { fechaFin: null } } },
+      where: { activo: true },
       orderBy: { nombre: "asc" },
       select: {
         id: true,
@@ -216,9 +219,11 @@ export default async function UsuariosPage({
               required={false}
             />
             <p className="text-xs text-slate-400">
-              Obligatorio para los roles Propietario e Inquilino: es lo que
-              determina qué estado de cuenta y qué recibos verá. Déjalo vacío
-              para personal de la administración.
+              Escribe parte del nombre o el N° de propiedad y elige una de las
+              sugerencias — no basta con teclearlo. Obligatorio para los roles
+              Propietario e Inquilino: es lo que determina qué estado de cuenta
+              y qué recibos verá. Déjalo vacío para personal de la
+              administración.
             </p>
 
             <button type="submit" className={buttonClass()}>

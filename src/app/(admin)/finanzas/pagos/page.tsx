@@ -164,6 +164,22 @@ export default async function PagosPage({
                     {p.medio} · {p.fechaPago.toISOString().slice(0, 10)}
                     {p.numeroOperacion ? ` · Op. ${p.numeroOperacion}` : ""}
                   </p>
+                  {/* El comprobante es lo que se revisa para validar: va aquí,
+                      junto a los botones, y no solo en el historial. */}
+                  {p.voucherArchivoId ? (
+                    <a
+                      href={`/api/comprobantes/${p.voucherArchivoId}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="mt-1 inline-block text-xs text-brand hover:underline"
+                    >
+                      📎 Ver comprobante del banco
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Sin comprobante adjunto
+                    </p>
+                  )}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <form action={confirmarPagoAction}>
                       <input type="hidden" name="pagoId" value={p.id} />

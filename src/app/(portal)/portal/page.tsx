@@ -4,11 +4,14 @@ import { estadoCuentaPropietario } from "@/modules/finanzas/estado-cuenta.servic
 import { EstadoCuentaView } from "@/components/estado-cuenta-view";
 import {
   Card,
+  Badge,
   inputClass,
   labelClass,
   buttonClass,
   LinkButton,
 } from "@/components/ui";
+import { formatPEN } from "@/lib/money";
+import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 import { declararPagoAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -32,10 +35,20 @@ export default async function PortalPage({
     );
   }
 
-  const [ec, cuentas] = await Promise.all([
+  const [ec, cuentas, declarados] = await Promise.all([
     estadoCuentaPropietario(user.propietarioId),
     prisma.configuracion.findUnique({
       where: { clave: "cuentas_bancarias_condominio" },
+    }),
+    // Lo declarado y aún sin validar: aquí el propietario comprueba que su
+    // comprobante llegó, y ve el motivo si la administración lo rechazó.
+    prisma.pago.findMany({
+      where: {
+        propietarioId: user.propietarioId,
+        estado: { in: ["POR_VALIDAR", "RECHAZADO"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
     }),
   ]);
 
@@ -131,6 +144,23 @@ export default async function PortalPage({
                 />
               </div>
             </div>
+            <div>
+              <label className={labelClass} htmlFor="comprobante">
+                Comprobante del banco (opcional)
+              </label>
+              <input
+                id="comprobante"
+                name="comprobante"
+                type="file"
+                accept={ACCEPT_COMPROBANTE}
+                className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Foto o PDF del voucher, la constancia de transferencia o la
+                captura de Yape/Plin. Hasta 8 MB. Adjuntarlo agiliza la
+                validación.
+              </p>
+            </div>
             <button type="submit" className={buttonClass()}>
               Declarar pago
             </button>
@@ -161,6 +191,56 @@ export default async function PortalPage({
           </p>
         </Card>
       </div>
+
+      {declarados.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">
+            Pagos que declaraste
+          </h2>
+          <ul className="space-y-2">
+            {declarados.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              >
+                <span className="text-slate-700">
+                  {p.fechaPago.toISOString().slice(0, 10)} · {p.medio}
+                  {p.numeroOperacion ? ` · Op. ${p.numeroOperacion}` : ""}
+                </span>
+                <span className="flex items-center gap-3">
+                  {p.voucherArchivoId ? (
+                    <a
+                      href={`/api/comprobantes/${p.voucherArchivoId}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="text-brand hover:underline"
+                    >
+                      Ver comprobante
+                    </a>
+                  ) : (
+                    <span className="text-xs text-slate-400">Sin comprobante</span>
+                  )}
+                  <span className="font-medium tabular-nums">
+                    {formatPEN(p.monto)}
+                  </span>
+                  <Badge>
+                    {p.estado === "POR_VALIDAR" ? "Por validar" : "Rechazado"}
+                  </Badge>
+                </span>
+                {p.estado === "RECHAZADO" && p.rechazoMotivo && (
+                  <p className="w-full text-xs text-red-600">
+                    Motivo: {p.rechazoMotivo}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-slate-400">
+            Un pago declarado recién se refleja en tu estado de cuenta cuando la
+            administración lo valida.
+          </p>
+        </Card>
+      )}
     </>
   );
 }

@@ -241,7 +241,11 @@ export async function declararPago(
     accion: "DECLARAR_PAGO",
     entidad: "Pago",
     entidadId: pago.id,
-    datosDespues: { monto: input.monto, medio: input.medio },
+    datosDespues: {
+      monto: input.monto,
+      medio: input.medio,
+      comprobante: Boolean(input.voucherArchivoId),
+    },
   });
   return pago.id;
 }

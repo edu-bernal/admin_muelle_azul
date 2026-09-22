@@ -15,6 +15,16 @@ export interface EmisionInput {
   creadoPorId?: string | null;
 }
 
+/**
+ * Unidades que entran en una emisión masiva. Las cocheras —y cualquier tipo
+ * marcado así en Parámetros— no pagan mantenimiento: se omiten en vez de
+ * arrastrar cargos de S/ 0 por el estado de cuenta y la morosidad.
+ */
+const UNIDADES_FACTURABLES = {
+  activo: true,
+  tipo: { generaCuota: true },
+} as const;
+
 export interface EmisionPreview {
   concepto: string;
   periodo: Date;
@@ -121,7 +131,7 @@ export async function previsualizarEmision(
   if (!concepto) throw new Error(`Concepto ${input.conceptoCodigo} no existe`);
 
   const unidades = await prisma.unidad.findMany({
-    where: { activo: true },
+    where: UNIDADES_FACTURABLES,
     orderBy: { codigo: "asc" },
     select: {
       codigo: true,
@@ -185,7 +195,7 @@ export async function confirmarEmision(
   }
 
   const unidades = await prisma.unidad.findMany({
-    where: { activo: true },
+    where: UNIDADES_FACTURABLES,
     select: {
       id: true,
       codigo: true,
@@ -195,7 +205,9 @@ export async function confirmarEmision(
       tipo: { select: { valor: true } },
     },
   });
-  if (unidades.length === 0) throw new Error("No hay unidades activas.");
+  if (unidades.length === 0) {
+    throw new Error("No hay unidades activas que generen cuota.");
+  }
 
   const montos = await resolverMontos(concepto, periodo, input.montoManual, unidades);
   const etiquetaPeriodo = periodo.toISOString().slice(0, 7);

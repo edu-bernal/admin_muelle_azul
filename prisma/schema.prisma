@@ -262,6 +262,9 @@ model TipoUnidad {
   /// Cuota mensual de las propiedades de este tipo. Si está vacía, la emisión
   /// usa la tarifa del sector o la general.
   valor    Decimal? @db.Decimal(12, 2)
+  /// false en los tipos que no pagan mantenimiento (las cocheras): la emisión
+  /// masiva los omite en vez de crearles un cargo de S/ 0.
+  generaCuota Boolean @default(true)
   orden    Int      @default(0)
   activo   Boolean  @default(true)
   unidades Unidad[]

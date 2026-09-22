@@ -207,7 +207,9 @@ export default async function ParametrosPage({
               <td className="px-4 py-3 font-medium tabular-nums">{t.codigo}</td>
               <td className="px-4 py-3">{t.nombre}</td>
               <td className="px-4 py-3 text-right tabular-nums">
-                {t.valor === null ? (
+                {!t.generaCuota ? (
+                  <span className="text-slate-400">No paga cuota</span>
+                ) : t.valor === null ? (
                   <span className="text-slate-400">Según tarifa</span>
                 ) : (
                   <span className="font-medium">{formatPEN(t.valor)}</span>
@@ -298,6 +300,24 @@ export default async function ParametrosPage({
                 Monto que se emitirá cada mes a las propiedades de este tipo. Si
                 se deja vacío, se aplica la tarifa del sector o la general.
               </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  name="generaCuota"
+                  defaultChecked={tipoEnEdicion?.generaCuota ?? true}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                />
+                <span>
+                  Genera cuota de mantenimiento
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Desmárcalo para las cocheras y cualquier tipo que no paga:
+                    la emisión mensual los omite en vez de crearles un cargo de
+                    S/ 0.
+                  </span>
+                </span>
+              </label>
             </div>
             <div>
               <label className={labelClass} htmlFor="tipo-orden">

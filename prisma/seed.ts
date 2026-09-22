@@ -74,7 +74,8 @@ async function seedTiposUnidad() {
   const tipos = [
     { codigo: "CASA", nombre: "Casa", orden: 1 },
     { codigo: "TERRENO", nombre: "Terreno sin construir", orden: 2 },
-    { codigo: "COCHERA", nombre: "Cochera", orden: 3 },
+    // La cochera acompaña a una casa: no paga cuota propia.
+    { codigo: "COCHERA", nombre: "Cochera", orden: 3, generaCuota: false },
   ];
   for (const t of tipos) {
     await prisma.tipoUnidad.upsert({

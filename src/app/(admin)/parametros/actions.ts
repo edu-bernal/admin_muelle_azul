@@ -107,6 +107,7 @@ export async function guardarTipoAction(formData: FormData) {
   // Vacío significa "sin valor propio": la emisión caerá en la tarifa.
   const valorTexto = String(formData.get("valor") ?? "").trim();
   const valor = valorTexto === "" ? null : Number(valorTexto);
+  const generaCuota = formData.get("generaCuota") === "on";
 
   if (!codigo || !nombre) volver("Código y nombre son obligatorios", true);
   if (valor !== null && (!Number.isFinite(valor) || valor < 0)) {
@@ -117,25 +118,25 @@ export async function guardarTipoAction(formData: FormData) {
     if (id) {
       await prisma.tipoUnidad.update({
         where: { id },
-        data: { nombre, orden: Number.isFinite(orden) ? orden : 0, valor },
+        data: { nombre, orden: Number.isFinite(orden) ? orden : 0, valor, generaCuota },
       });
       await audit({
         usuarioId: user.userId,
         accion: "EDITAR_TIPO_UNIDAD",
         entidad: "TipoUnidad",
         entidadId: id,
-        datosDespues: { nombre, orden, valor },
+        datosDespues: { nombre, orden, valor, generaCuota },
       });
     } else {
       const creado = await prisma.tipoUnidad.create({
-        data: { codigo, nombre, orden: Number.isFinite(orden) ? orden : 0, valor },
+        data: { codigo, nombre, orden: Number.isFinite(orden) ? orden : 0, valor, generaCuota },
       });
       await audit({
         usuarioId: user.userId,
         accion: "CREAR_TIPO_UNIDAD",
         entidad: "TipoUnidad",
         entidadId: creado.id,
-        datosDespues: { codigo, nombre, orden, valor },
+        datosDespues: { codigo, nombre, orden, valor, generaCuota },
       });
     }
   } catch (e) {

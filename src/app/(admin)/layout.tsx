@@ -40,6 +40,7 @@ export default async function AdminLayout({
               <NavLink href="/finanzas/emision" icon="🧾">Emisión de cuotas</NavLink>
               <NavLink href="/finanzas/pagos" icon="💵">Pagos</NavLink>
               <NavLink href="/finanzas/estados-cuenta" icon="📄">Estados de cuenta</NavLink>
+              <NavLink href="/finanzas/padron-anual" icon="📊">Padrón con abonos</NavLink>
               <NavLink href="/finanzas/morosidad" icon="⏰">Morosidad</NavLink>
               {can(user, "conciliacion.gestionar") && (
                 <NavLink href="/finanzas/conciliacion" icon="🏦">Conciliación</NavLink>

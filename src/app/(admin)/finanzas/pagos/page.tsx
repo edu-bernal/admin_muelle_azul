@@ -11,6 +11,7 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { RegistrarPagoForm } from "@/components/registrar-pago-form";
+import { mediosPagoSeleccionables } from "@/modules/finanzas/medios-pago.service";
 import {
   registrarPagoAction,
   confirmarPagoAction,
@@ -138,6 +139,7 @@ export default async function PagosPage({
             propietarios={propietarios}
             accion={registrarPagoAction}
             hoy={hoy}
+            medios={await mediosPagoSeleccionables()}
           />
         </Card>
 

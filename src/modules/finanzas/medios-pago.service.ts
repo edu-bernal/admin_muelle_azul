@@ -43,3 +43,20 @@ export async function nombresMediosPago(): Promise<Map<string, string>> {
   });
   return new Map(medios.map((m) => [m.codigo, m.nombre]));
 }
+
+/**
+ * Al editar un pago se admite cualquier medio seleccionable y, además, el que
+ * el pago ya tiene: así un pago migrado o con un medio luego desactivado se
+ * puede corregir en lo demás sin forzar a cambiarle el medio.
+ */
+export async function esMedioValidoParaPago(
+  pagoId: string,
+  codigo: string,
+): Promise<boolean> {
+  if (await esMedioSeleccionable(codigo)) return true;
+  const pago = await prisma.pago.findUnique({
+    where: { id: pagoId },
+    select: { medio: true },
+  });
+  return pago?.medio === codigo;
+}

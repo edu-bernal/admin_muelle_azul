@@ -13,6 +13,7 @@ import {
 import { editarPagoAction } from "../../actions";
 import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 import { unidadIdsDePropietario } from "@/modules/finanzas/shared";
+import { mediosPagoSeleccionables } from "@/modules/finanzas/medios-pago.service";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,14 @@ export default async function EditarPagoPage({
       })
     : [];
   const fechaStr = pago.fechaPago.toISOString().slice(0, 10);
+
+  // El medio actual se ofrece siempre, aunque esté inactivo o sea de sistema
+  // (los pagos migrados): si no, el desplegable lo cambiaría sin avisar.
+  const medios = await mediosPagoSeleccionables();
+  if (!medios.some((m) => m.codigo === pago.medio)) {
+    const actual = await prisma.medioPago.findUnique({ where: { codigo: pago.medio } });
+    medios.unshift({ codigo: pago.medio, nombre: actual?.nombre ?? pago.medio });
+  }
 
   return (
     <div className="max-w-xl">
@@ -169,12 +178,11 @@ export default async function EditarPagoPage({
                 Medio
               </label>
               <select id="medio" name="medio" defaultValue={pago.medio} className={inputClass}>
-                <option value="TRANSFERENCIA">Transferencia</option>
-                <option value="DEPOSITO">Depósito</option>
-                <option value="YAPE">Yape</option>
-                <option value="PLIN">Plin</option>
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="CHEQUE">Cheque</option>
+                {medios.map((m) => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.nombre}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

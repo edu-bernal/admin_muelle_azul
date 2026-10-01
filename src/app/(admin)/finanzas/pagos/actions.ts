@@ -15,7 +15,7 @@ import {
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
 import { subirComprobante } from "@/lib/storage";
-import { esMedioSeleccionable } from "@/modules/finanzas/medios-pago.service";
+import { esMedioSeleccionable, esMedioValidoParaPago } from "@/modules/finanzas/medios-pago.service";
 
 /** Sube el comprobante si el formulario trae uno; devuelve el id del Archivo. */
 async function comprobanteDe(
@@ -127,7 +127,7 @@ export async function editarPagoAction(formData: FormData) {
   const montoStr = String(formData.get("monto") ?? "");
 
   if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
-  if (!fechaStr || !(await esMedioSeleccionable(medio))) {
+  if (!fechaStr || !(await esMedioValidoParaPago(pagoId, medio))) {
     redirect(`/finanzas/pagos/${pagoId}/editar?error=Datos%20incompletos`);
   }
 

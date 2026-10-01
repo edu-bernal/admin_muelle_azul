@@ -5,9 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { declararPago } from "@/modules/finanzas/pagos.service";
 import { subirComprobante } from "@/lib/storage";
-import type { MedioPago } from "@prisma/client";
-
-const MEDIOS = ["TRANSFERENCIA", "YAPE", "PLIN", "EFECTIVO", "DEPOSITO"];
+import { esMedioSeleccionable } from "@/modules/finanzas/medios-pago.service";
 
 export async function declararPagoAction(formData: FormData) {
   const user = await requireUser();
@@ -18,7 +16,7 @@ export async function declararPagoAction(formData: FormData) {
   const fechaStr = String(formData.get("fecha") ?? "");
   const medio = String(formData.get("medio") ?? "TRANSFERENCIA");
 
-  if (!monto || monto <= 0 || !fechaStr || !MEDIOS.includes(medio)) {
+  if (!monto || monto <= 0 || !fechaStr || !(await esMedioSeleccionable(medio, { portal: true }))) {
     redirect("/portal?error=Datos%20incompletos");
   }
 
@@ -45,7 +43,7 @@ export async function declararPagoAction(formData: FormData) {
         propietarioId: user.propietarioId,
         fechaPago: new Date(`${fechaStr}T00:00:00Z`),
         monto,
-        medio: medio as MedioPago,
+        medio,
         numeroOperacion: (formData.get("numeroOperacion") as string) || null,
         voucherArchivoId,
       },

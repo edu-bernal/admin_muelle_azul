@@ -14,8 +14,8 @@ import {
   type PagoResultado,
   type RegistrarPagoInput,
 } from "@/modules/finanzas/pagos.service";
-import type { MedioPago } from "@prisma/client";
 import { subirComprobante } from "@/lib/storage";
+import { esMedioSeleccionable, esMedioValidoParaPago } from "@/modules/finanzas/medios-pago.service";
 
 /** Sube el comprobante si el formulario trae uno; devuelve el id del Archivo. */
 async function comprobanteDe(
@@ -27,15 +27,6 @@ async function comprobanteDe(
   return subirComprobante(archivo, { usuarioId, entidadTipo: "Pago" });
 }
 
-const MEDIOS = [
-  "TRANSFERENCIA",
-  "YAPE",
-  "PLIN",
-  "EFECTIVO",
-  "DEPOSITO",
-  "CHEQUE",
-];
-
 export async function registrarPagoAction(formData: FormData) {
   const user = await requirePermission("finanzas.pagos.registrar");
 
@@ -44,7 +35,7 @@ export async function registrarPagoAction(formData: FormData) {
   const monto = Number(formData.get("monto"));
   const medio = String(formData.get("medio") ?? "TRANSFERENCIA");
 
-  if (!propietarioId || !fechaStr || !monto || monto <= 0 || !MEDIOS.includes(medio)) {
+  if (!propietarioId || !fechaStr || !monto || monto <= 0 || !(await esMedioSeleccionable(medio))) {
     redirect("/finanzas/pagos?error=Datos%20incompletos");
   }
 
@@ -60,7 +51,7 @@ export async function registrarPagoAction(formData: FormData) {
     propietarioId,
     fechaPago: new Date(`${fechaStr}T00:00:00Z`),
     monto,
-    medio: medio as MedioPago,
+    medio,
     banco: (formData.get("banco") as string) || null,
     numeroOperacion: (formData.get("numeroOperacion") as string) || null,
     voucherArchivoId,
@@ -136,7 +127,7 @@ export async function editarPagoAction(formData: FormData) {
   const montoStr = String(formData.get("monto") ?? "");
 
   if (!pagoId) redirect("/finanzas/pagos?error=Pago%20inv%C3%A1lido");
-  if (!fechaStr || !MEDIOS.includes(medio)) {
+  if (!fechaStr || !(await esMedioValidoParaPago(pagoId, medio))) {
     redirect(`/finanzas/pagos/${pagoId}/editar?error=Datos%20incompletos`);
   }
 
@@ -154,11 +145,17 @@ export async function editarPagoAction(formData: FormData) {
       {
         voucherArchivoId,
         quitarVoucher: formData.get("quitarComprobante") === "on",
-        medio: medio as MedioPago,
+        medio,
         banco: (formData.get("banco") as string) || null,
         numeroOperacion: (formData.get("numeroOperacion") as string) || null,
         fechaPago: new Date(`${fechaStr}T00:00:00Z`),
         monto: montoStr ? Number(montoStr) : undefined,
+        // La lista de cuotas solo viaja en pagos confirmados; sin la marca,
+        // un formulario sin casillas marcadas se confundiría con "ninguna".
+        cargoIds:
+          formData.get("editaCuotas") === "1"
+            ? formData.getAll("cargoIds").map(String)
+            : undefined,
       },
       user.userId,
     );

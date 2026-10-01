@@ -69,17 +69,6 @@ enum EstadoPago {
   ANULADO
 }
 
-enum MedioPago {
-  TRANSFERENCIA
-  YAPE
-  PLIN
-  EFECTIVO
-  DEPOSITO
-  CHEQUE
-  PASARELA
-  MIGRACION
-}
-
 enum DeclaradoPor {
   ADMIN
   PROPIETARIO
@@ -251,6 +240,26 @@ model Sector {
   activo   Boolean   @default(true)
   unidades Unidad[]
   tarifas  TarifaCuota[]
+}
+
+/// Medios con que se paga o cobra (transferencia, Yape...). Pago, IngresoVario
+/// y Egreso guardan el código, no el id, para que reportes e importaciones
+/// sigan leyendo "TRANSFERENCIA" como antes de existir el maestro.
+model MedioPago {
+  id      String  @id @default(uuid())
+  codigo  String  @unique
+  nombre  String
+  /// El propietario puede elegirlo al declarar un pago desde el portal.
+  portal  Boolean @default(true)
+  /// Lo asigna el propio sistema (pasarela, migración de históricos): no se
+  /// ofrece en los formularios ni se puede desactivar.
+  sistema Boolean @default(false)
+  orden   Int     @default(0)
+  activo  Boolean @default(true)
+
+  pagos    Pago[]
+  ingresos IngresoVario[]
+  egresos  Egreso[]
 }
 
 /// Maestro configurable desde Parámetros del sistema. Antes era un enum,
@@ -428,7 +437,8 @@ model Pago {
   monto            Decimal      @db.Decimal(12, 2)
   moneda           String       @default("PEN")
   tipoCambio       Decimal?     @db.Decimal(8, 4)
-  medio            MedioPago
+  medio            String
+  medioPago        MedioPago    @relation(fields: [medio], references: [codigo])
   banco            String?
   numeroOperacion  String?
   voucherArchivoId String?
@@ -507,7 +517,8 @@ model IngresoVario {
   propietarioId   String?
   propietario     Propietario?       @relation(fields: [propietarioId], references: [id])
   monto           Decimal            @db.Decimal(12, 2)
-  medio           MedioPago          @default(EFECTIVO)
+  medio           String             @default("EFECTIVO")
+  medioPago       MedioPago          @relation(fields: [medio], references: [codigo])
   numeroOperacion String?
   estado          EstadoIngresoVario @default(REGISTRADO)
   recibo          ReciboCaja?
@@ -648,7 +659,8 @@ model Egreso {
   descripcion     String?
   fechaPago       DateTime
   monto           Decimal             @db.Decimal(12, 2)
-  medio           MedioPago           @default(TRANSFERENCIA)
+  medio           String              @default("TRANSFERENCIA")
+  medioPago       MedioPago           @relation(fields: [medio], references: [codigo])
   numeroOperacion String?
   estado          EstadoEgreso        @default(REGISTRADO)
   createdAt       DateTime            @default(now())

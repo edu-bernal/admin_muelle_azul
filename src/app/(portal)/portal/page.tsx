@@ -13,6 +13,7 @@ import {
 import { formatPEN } from "@/lib/money";
 import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 import { declararPagoAction } from "./actions";
+import { mediosPagoSeleccionables } from "@/modules/finanzas/medios-pago.service";
 
 export const dynamic = "force-dynamic";
 
@@ -125,12 +126,12 @@ export default async function PortalPage({
                 <label className={labelClass} htmlFor="medio">
                   Medio
                 </label>
-                <select id="medio" name="medio" className={inputClass}>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                  <option value="DEPOSITO">Depósito BBVA</option>
-                  <option value="YAPE">Yape</option>
-                  <option value="PLIN">Plin</option>
-                  <option value="EFECTIVO">Efectivo</option>
+                <select id="medio" name="medio" required className={inputClass}>
+                  {(await mediosPagoSeleccionables({ portal: true })).map((m) => (
+                    <option key={m.codigo} value={m.codigo}>
+                      {m.nombre}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

@@ -347,3 +347,98 @@ export async function eliminarTarifaAction(formData: FormData) {
   revalidatePath(RUTA);
   volver("Tarifa eliminada");
 }
+
+// ── Medios de pago ─────────────────────────────────────────────────────────
+
+export async function guardarMedioPagoAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const codigo = normalizarCodigo(String(formData.get("codigo") ?? ""));
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const orden = Number(formData.get("orden") ?? 0);
+  const portal = formData.get("portal") === "on";
+
+  if (!codigo || !nombre) volver("Código y nombre son obligatorios", true);
+
+  const medio = id ? await prisma.medioPago.findUnique({ where: { id } }) : null;
+  if (id && !medio) volver("Medio de pago no encontrado", true);
+
+  try {
+    if (medio) {
+      // El código no se edita: los pagos guardan el código del medio, y los
+      // de sistema (PASARELA, MIGRACION) los usa el propio programa.
+      await prisma.medioPago.update({
+        where: { id },
+        data: {
+          nombre,
+          orden: Number.isFinite(orden) ? orden : 0,
+          // Los de sistema nunca se ofrecen al propietario.
+          portal: medio.sistema ? false : portal,
+        },
+      });
+      await audit({
+        usuarioId: user.userId,
+        accion: "EDITAR_MEDIO_PAGO",
+        entidad: "MedioPago",
+        entidadId: id,
+        datosDespues: { nombre, orden, portal },
+      });
+    } else {
+      const creado = await prisma.medioPago.create({
+        data: { codigo, nombre, orden: Number.isFinite(orden) ? orden : 0, portal },
+      });
+      await audit({
+        usuarioId: user.userId,
+        accion: "CREAR_MEDIO_PAGO",
+        entidad: "MedioPago",
+        entidadId: creado.id,
+        datosDespues: { codigo, nombre, orden, portal },
+      });
+    }
+  } catch (e) {
+    const msg = e instanceof Error && e.message.includes("Unique")
+      ? `Ya existe un medio de pago con el código ${codigo}`
+      : "No se pudo guardar el medio de pago";
+    volver(msg, true);
+  }
+
+  revalidatePath(RUTA);
+  volver("Medio de pago guardado");
+}
+
+export async function alternarMedioPagoAction(formData: FormData) {
+  const user = await requirePermission("config.gestionar");
+  const id = String(formData.get("id") ?? "");
+  const medio = await prisma.medioPago.findUnique({ where: { id } });
+  if (!medio) volver("Medio de pago no encontrado", true);
+
+  if (medio.sistema) {
+    volver(`${medio.nombre} lo usa el propio sistema y no se puede desactivar`, true);
+  }
+
+  // A diferencia de sectores o tipos, desactivar un medio con pagos sí se
+  // permite: solo deja de ofrecerse en los formularios y los pagos que ya lo
+  // usan lo conservan. Debe quedar al menos uno para poder registrar pagos.
+  if (medio.activo) {
+    const activos = await prisma.medioPago.count({
+      where: { activo: true, sistema: false },
+    });
+    if (activos <= 1) {
+      volver("Debe quedar al menos un medio de pago activo", true);
+    }
+  }
+
+  await prisma.medioPago.update({
+    where: { id },
+    data: { activo: !medio.activo },
+  });
+  await audit({
+    usuarioId: user.userId,
+    accion: medio.activo ? "DESACTIVAR_MEDIO_PAGO" : "ACTIVAR_MEDIO_PAGO",
+    entidad: "MedioPago",
+    entidadId: id,
+  });
+
+  revalidatePath(RUTA);
+  volver(medio.activo ? "Medio de pago desactivado" : "Medio de pago activado");
+}

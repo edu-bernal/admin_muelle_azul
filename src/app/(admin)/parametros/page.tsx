@@ -18,6 +18,8 @@ import {
   alternarConceptoAction,
   guardarTarifaAction,
   eliminarTarifaAction,
+  guardarMedioPagoAction,
+  alternarMedioPagoAction,
 } from "./actions";
 import { formatPEN } from "@/lib/money";
 
@@ -33,12 +35,13 @@ export default async function ParametrosPage({
     tipo?: string;
     concepto?: string;
     tarifa?: string;
+    medio?: string;
   }>;
 }) {
   await requirePermission("config.gestionar");
   const sp = await searchParams;
 
-  const [sectores, tipos, conceptos, tarifas] = await Promise.all([
+  const [sectores, tipos, conceptos, tarifas, medios] = await Promise.all([
     prisma.sector.findMany({
       orderBy: { nombre: "asc" },
       include: { _count: { select: { unidades: true } } },
@@ -55,6 +58,11 @@ export default async function ParametrosPage({
       orderBy: { vigenteDesde: "desc" },
       include: { sector: true },
     }),
+    prisma.medioPago.findMany({
+      // Los de sistema van al final: no se eligen en ningún formulario.
+      orderBy: [{ sistema: "asc" }, { orden: "asc" }, { nombre: "asc" }],
+      include: { _count: { select: { pagos: true } } },
+    }),
   ]);
 
   // Un id en la URL abre ese registro para edición en el formulario lateral.
@@ -62,12 +70,13 @@ export default async function ParametrosPage({
   const tipoEnEdicion = tipos.find((t) => t.id === sp.tipo);
   const conceptoEnEdicion = conceptos.find((c) => c.id === sp.concepto);
   const tarifaEnEdicion = tarifas.find((t) => t.id === sp.tarifa);
+  const medioEnEdicion = medios.find((m) => m.id === sp.medio);
 
   return (
     <>
       <PageHeader
         title="Parámetros del sistema"
-        subtitle="Maestros que alimentan los formularios de propiedades"
+        subtitle="Maestros que alimentan los formularios de propiedades y de pagos"
       />
 
       {sp.ok && (
@@ -596,10 +605,159 @@ export default async function ParametrosPage({
         </Card>
       </div>
 
+      {/* ── Medios de pago ───────────────────────────────────────── */}
+      <h2 className="mb-3 mt-10 text-lg font-semibold text-slate-900">
+        Medios de pago ({medios.length})
+      </h2>
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <Table
+          head={
+            <tr>
+              <th className="px-4 py-3">Código</th>
+              <th className="px-4 py-3">Nombre</th>
+              <th className="px-4 py-3 text-center">Portal</th>
+              <th className="px-4 py-3 text-center">Orden</th>
+              <th className="px-4 py-3 text-center">Pagos</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Acción</th>
+            </tr>
+          }
+        >
+          {medios.map((m) => (
+            <tr key={m.id}>
+              <td className="px-4 py-3 font-medium tabular-nums">{m.codigo}</td>
+              <td className="px-4 py-3">
+                {m.nombre}
+                {m.sistema && (
+                  <span className="ml-2 text-xs text-slate-400">del sistema</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-center">{m.portal ? "Sí" : "—"}</td>
+              <td className="px-4 py-3 text-center tabular-nums text-slate-500">
+                {m.orden}
+              </td>
+              <td className="px-4 py-3 text-center tabular-nums">{m._count.pagos}</td>
+              <td className="px-4 py-3">
+                <Badge>{m.activo ? "ACTIVO" : "INACTIVO"}</Badge>
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/parametros?medio=${m.id}`}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    Editar
+                  </a>
+                  {!m.sistema && (
+                    <form action={alternarMedioPagoAction}>
+                      <input type="hidden" name="id" value={m.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        {m.activo ? "Desactivar" : "Activar"}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+
+        <Card>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            {medioEnEdicion ? "Editar medio de pago" : "Nuevo medio de pago"}
+          </h3>
+          <form action={guardarMedioPagoAction} className="space-y-3">
+            {medioEnEdicion && (
+              <input type="hidden" name="id" value={medioEnEdicion.id} />
+            )}
+            <div>
+              <label className={labelClass} htmlFor="medio-codigo">
+                Código
+              </label>
+              <input
+                id="medio-codigo"
+                name="codigo"
+                required
+                defaultValue={medioEnEdicion?.codigo ?? ""}
+                readOnly={!!medioEnEdicion}
+                placeholder="DEPOSITO_BCP"
+                className={`${inputClass} ${medioEnEdicion ? "bg-slate-50 text-slate-500" : ""}`}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                {medioEnEdicion
+                  ? "El código no se edita: cada pago guarda el código de su medio."
+                  : "Se guarda en mayúsculas."}
+              </p>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="medio-nombre">
+                Nombre
+              </label>
+              <input
+                id="medio-nombre"
+                name="nombre"
+                required
+                defaultValue={medioEnEdicion?.nombre ?? ""}
+                placeholder="Depósito BCP"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Es lo que se ve en los formularios de pago.
+              </p>
+            </div>
+            {!medioEnEdicion?.sistema && (
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  name="portal"
+                  defaultChecked={medioEnEdicion?.portal ?? true}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                El propietario puede elegirlo en el portal
+              </label>
+            )}
+            <div>
+              <label className={labelClass} htmlFor="medio-orden">
+                Orden
+              </label>
+              <input
+                id="medio-orden"
+                name="orden"
+                type="number"
+                min="0"
+                defaultValue={
+                  medioEnEdicion?.orden ??
+                  medios.filter((m) => !m.sistema).length + 1
+                }
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Posición en la lista desplegable de los formularios de pago.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className={buttonClass()}>
+                Guardar
+              </button>
+              {medioEnEdicion && (
+                <a href="/parametros" className={buttonClass("ghost")}>
+                  Cancelar
+                </a>
+              )}
+            </div>
+          </form>
+        </Card>
+      </div>
+
       <p className="mt-6 max-w-2xl text-xs text-slate-400">
         Un sector, tipo o concepto con registros asociados no se puede
         desactivar, porque dejaría de aparecer en los formularios mientras esos
-        registros siguen activos. Primero hay que reasignarlos.
+        registros siguen activos. Primero hay que reasignarlos. Los medios de
+        pago sí se pueden desactivar con pagos: solo dejan de ofrecerse, y los
+        pagos que ya los usan los conservan.
       </p>
     </>
   );

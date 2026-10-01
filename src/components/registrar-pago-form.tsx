@@ -8,6 +8,7 @@ import {
 import { inputClass, labelClass, buttonClass } from "@/components/ui";
 import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
 import type { CargoPendiente } from "@/modules/finanzas/cargos-pendientes.service";
+import type { MedioPagoOpcion } from "@/modules/finanzas/medios-pago.service";
 
 const PEN = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -27,10 +28,12 @@ export function RegistrarPagoForm({
   propietarios,
   accion,
   hoy,
+  medios,
 }: {
   propietarios: PropietarioOption[];
   accion: (formData: FormData) => void;
   hoy: string;
+  medios: MedioPagoOpcion[];
 }) {
   const [cargos, setCargos] = useState<CargoPendiente[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
@@ -204,13 +207,12 @@ export function RegistrarPagoForm({
           <label className={labelClass} htmlFor="medio">
             Medio
           </label>
-          <select id="medio" name="medio" className={inputClass}>
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="DEPOSITO">Depósito BBVA</option>
-            <option value="YAPE">Yape</option>
-            <option value="PLIN">Plin</option>
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="CHEQUE">Cheque</option>
+          <select id="medio" name="medio" required className={inputClass}>
+            {medios.map((m) => (
+              <option key={m.codigo} value={m.codigo}>
+                {m.nombre}
+              </option>
+            ))}
           </select>
         </div>
         <div>

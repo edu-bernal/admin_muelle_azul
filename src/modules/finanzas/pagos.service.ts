@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma, type MedioPago } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { dec, ZERO } from "@/lib/money";
 import { audit } from "@/lib/audit";
 import { unidadIdsDePropietario, siguienteNumeroRecibo } from "./shared";
@@ -110,7 +110,7 @@ export interface RegistrarPagoInput {
   propietarioId: string;
   fechaPago: Date;
   monto: number;
-  medio: MedioPago;
+  medio: string;
   banco?: string | null;
   numeroOperacion?: string | null;
   voucherArchivoId?: string | null;
@@ -405,42 +405,207 @@ export async function anularPago(
 }
 
 export interface EditarPagoInput {
-  medio: MedioPago;
+  medio: string;
   banco?: string | null;
   numeroOperacion?: string | null;
   fechaPago: Date;
-  /** Solo se aplica si el pago aún está POR_VALIDAR (nada se ha aplicado todavía). */
   monto?: number;
+  /**
+   * Cuotas que cubre el pago. Solo cuenta en pagos CONFIRMADOS: si cambian, o
+   * cambia el monto, el pago se re-aplica. En los POR_VALIDAR todavía no hay
+   * nada aplicado y basta con cambiar el monto.
+   */
+  cargoIds?: string[];
   /** Id de Archivo del comprobante. Si viene, reemplaza al anterior. */
   voucherArchivoId?: string | null;
   /** Quita el comprobante actual. Se ignora si además llega uno nuevo. */
   quitarVoucher?: boolean;
 }
 
+export interface Reaplicacion {
+  montoAnterior: number;
+  montoNuevo: number;
+  aplicado: number;
+  saldoFavor: number;
+  periodos: string[];
+}
+
 /**
- * Edita los datos de un pago. El monto solo es editable mientras el pago
- * esté POR_VALIDAR (no se ha aplicado a ningún cargo todavía); una vez
- * CONFIRMADO, para corregir el monto hay que anular el pago y registrar uno
- * nuevo — igual que un cargo emitido nunca se edita, se anula y se re-emite.
+ * Deshace el efecto de un pago sobre las cuotas y el saldo a favor: borra sus
+ * aplicaciones, recalcula el estado de cada cuota con lo que le quede de otros
+ * pagos y descuenta del saldo a favor lo que este pago hubiera dejado ahí.
+ */
+async function revertirEfectoPago(
+  tx: Tx,
+  pago: { id: string; propietarioId: string },
+): Promise<void> {
+  const aplicaciones = await tx.aplicacionPago.findMany({ where: { pagoId: pago.id } });
+  await tx.aplicacionPago.deleteMany({ where: { pagoId: pago.id } });
+
+  for (const cargoId of new Set(aplicaciones.map((a) => a.cargoId))) {
+    const cargo = await tx.cargo.findUnique({
+      where: { id: cargoId },
+      include: { aplicaciones: true },
+    });
+    if (!cargo || cargo.estado === "ANULADO") continue;
+    const restante = cargo.aplicaciones.reduce((acc, a) => acc.plus(a.montoAplicado), ZERO);
+    await tx.cargo.update({
+      where: { id: cargoId },
+      data: {
+        estado: restante.lte(ZERO)
+          ? "PENDIENTE"
+          : restante.gte(new Prisma.Decimal(cargo.monto))
+            ? "PAGADO"
+            : "PARCIAL",
+      },
+    });
+  }
+
+  const abonos = await tx.saldoFavorMovimiento.findMany({
+    where: { pagoId: pago.id, signo: 1 },
+  });
+  const aDescontar = abonos.reduce((acc, m) => acc.plus(m.monto), ZERO);
+  if (aDescontar.gt(ZERO)) {
+    const saldo = await tx.saldoFavor.findUnique({
+      where: { propietarioId: pago.propietarioId },
+    });
+    if (saldo) {
+      const nuevo = new Prisma.Decimal(saldo.montoDisponible).minus(aDescontar);
+      await tx.saldoFavor.update({
+        where: { id: saldo.id },
+        data: { montoDisponible: nuevo.lte(ZERO) ? ZERO : nuevo },
+      });
+    }
+  }
+  await tx.saldoFavorMovimiento.deleteMany({ where: { pagoId: pago.id } });
+}
+
+/**
+ * Vuelve a aplicar un pago confirmado con otro monto y/o a otras cuotas.
+ *
+ * Se deshace por completo lo que el pago había hecho y se aplica de nuevo:
+ * así el resultado es el mismo que si el pago se hubiera registrado bien desde
+ * el principio, sin arrastrar restos de la versión anterior. Las cuotas se
+ * cubren de la más antigua a la más nueva, cada una hasta su saldo, y lo que
+ * sobre queda como saldo a favor del propietario.
+ */
+async function reaplicarPago(
+  tx: Tx,
+  pago: { id: string; propietarioId: string; monto: Prisma.Decimal },
+  montoNuevo: Prisma.Decimal,
+  cargoIds: string[],
+  usuarioId?: string | null,
+): Promise<Reaplicacion> {
+  // Se admiten las cuotas de las propiedades actuales del propietario y las
+  // que el pago ya cubría, aunque la propiedad haya cambiado de dueño luego.
+  const [unidadIds, previas] = await Promise.all([
+    unidadIdsDePropietario(pago.propietarioId, tx),
+    tx.aplicacionPago.findMany({ where: { pagoId: pago.id }, select: { cargoId: true } }),
+  ]);
+  const yaCubiertas = new Set(previas.map((p) => p.cargoId));
+
+  await revertirEfectoPago(tx, pago);
+
+  const cargos = await tx.cargo.findMany({
+    where: { id: { in: cargoIds }, estado: { not: "ANULADO" } },
+    include: { aplicaciones: true },
+    orderBy: [{ fechaVencimiento: "asc" }, { createdAt: "asc" }],
+  });
+  const ajenas = cargos.filter(
+    (c) => !unidadIds.includes(c.unidadId) && !yaCubiertas.has(c.id),
+  );
+  if (ajenas.length > 0) {
+    throw new Error("Una de las cuotas elegidas no pertenece a este propietario");
+  }
+
+  let restante = montoNuevo;
+  const periodos: string[] = [];
+  for (const cargo of cargos) {
+    if (restante.lte(ZERO)) break;
+    const aplicado = cargo.aplicaciones.reduce((acc, a) => acc.plus(a.montoAplicado), ZERO);
+    const saldo = new Prisma.Decimal(cargo.monto).minus(aplicado);
+    if (saldo.lte(ZERO)) continue;
+    const aAplicar = restante.lt(saldo) ? restante : saldo;
+
+    await tx.aplicacionPago.create({
+      data: {
+        pagoId: pago.id,
+        cargoId: cargo.id,
+        montoAplicado: aAplicar,
+        aplicadoPorId: usuarioId ?? null,
+      },
+    });
+    await tx.cargo.update({
+      where: { id: cargo.id },
+      data: {
+        estado: aplicado.plus(aAplicar).gte(new Prisma.Decimal(cargo.monto))
+          ? "PAGADO"
+          : "PARCIAL",
+      },
+    });
+    if (cargo.periodo) periodos.push(cargo.periodo.toISOString().slice(0, 7));
+    restante = restante.minus(aAplicar);
+  }
+
+  if (restante.gt(ZERO)) {
+    const saldo = await tx.saldoFavor.upsert({
+      where: { propietarioId: pago.propietarioId },
+      create: { propietarioId: pago.propietarioId, montoDisponible: restante },
+      update: { montoDisponible: { increment: restante } },
+    });
+    await tx.saldoFavorMovimiento.create({
+      data: { saldoFavorId: saldo.id, pagoId: pago.id, monto: restante, signo: 1 },
+    });
+  }
+
+  await tx.pago.update({ where: { id: pago.id }, data: { monto: montoNuevo } });
+
+  // El recibo lee monto y aplicaciones en vivo; solo el detalle de meses está
+  // guardado y hay que ponerlo al día.
+  await tx.reciboCaja.updateMany({
+    where: { pagoId: pago.id },
+    data: { detallePeriodos: periodos.length ? periodos.join(", ") : null },
+  });
+
+  return {
+    montoAnterior: new Prisma.Decimal(pago.monto).toNumber(),
+    montoNuevo: montoNuevo.toNumber(),
+    aplicado: montoNuevo.minus(restante).toNumber(),
+    saldoFavor: restante.toNumber(),
+    periodos,
+  };
+}
+
+/**
+ * Edita un pago. Los datos del medio, la fecha y el comprobante se cambian
+ * siempre. El monto, en un pago POR_VALIDAR, se cambia sin más porque aún no
+ * se ha aplicado; en uno CONFIRMADO, cambiar el monto o las cuotas que cubre
+ * re-aplica el pago (ver `reaplicarPago`).
  */
 export async function editarPago(
   pagoId: string,
   input: EditarPagoInput,
   usuarioId?: string | null,
-): Promise<void> {
-  const pago = await prisma.pago.findUnique({ where: { id: pagoId } });
+): Promise<Reaplicacion | null> {
+  const pago = await prisma.pago.findUnique({
+    where: { id: pagoId },
+    include: { aplicaciones: { select: { cargoId: true } } },
+  });
   if (!pago) throw new Error("Pago no encontrado");
   if (pago.estado === "ANULADO" || pago.estado === "RECHAZADO") {
     throw new Error("No se puede editar un pago anulado o rechazado");
   }
+  if (input.monto != null && !(input.monto > 0)) {
+    throw new Error("El monto debe ser mayor que cero");
+  }
 
-  const data: Prisma.PagoUpdateInput = {
+  const data: Prisma.PagoUncheckedUpdateInput = {
     medio: input.medio,
     banco: input.banco ?? null,
     numeroOperacion: input.numeroOperacion ?? null,
     fechaPago: input.fechaPago,
   };
-  if (pago.estado === "POR_VALIDAR" && input.monto != null && input.monto > 0) {
+  if (pago.estado === "POR_VALIDAR" && input.monto != null) {
     data.monto = dec(input.monto);
   }
 
@@ -454,7 +619,24 @@ export async function editarPago(
     data.voucherArchivoId = null;
   }
 
-  await prisma.pago.update({ where: { id: pagoId }, data });
+  const cuotasAntes = pago.aplicaciones.map((a) => a.cargoId).sort();
+  const montoNuevo = input.monto != null ? dec(input.monto) : new Prisma.Decimal(pago.monto);
+  const cuotasNuevas = input.cargoIds ? [...new Set(input.cargoIds)].sort() : cuotasAntes;
+  const hayQueReaplicar =
+    pago.estado === "CONFIRMADO" &&
+    (!montoNuevo.eq(new Prisma.Decimal(pago.monto)) ||
+      cuotasNuevas.join() !== cuotasAntes.join());
+
+  let reaplicacion: Reaplicacion | null = null;
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.pago.update({ where: { id: pagoId }, data });
+      if (hayQueReaplicar) {
+        reaplicacion = await reaplicarPago(tx, pago, montoNuevo, cuotasNuevas, usuarioId);
+      }
+    },
+    { timeout: 30000, maxWait: 10000 },
+  );
 
   // El archivo anterior se borra tanto al reemplazarlo como al quitarlo,
   // para no dejarlo huérfano ocupando el almacenamiento.
@@ -463,14 +645,19 @@ export async function editarPago(
   if (anterior && (quitar || reemplazado)) {
     await eliminarArchivo(anterior);
   }
+
   await audit({
     usuarioId,
-    accion: "EDITAR_PAGO",
+    accion: reaplicacion ? "REAPLICAR_PAGO" : "EDITAR_PAGO",
     entidad: "Pago",
     entidadId: pagoId,
+    datosAntes: reaplicacion
+      ? { monto: new Prisma.Decimal(pago.monto).toString(), cuotas: cuotasAntes }
+      : undefined,
     datosDespues: {
       medio: input.medio,
-      monto: input.monto,
+      monto: montoNuevo.toString(),
+      ...(reaplicacion ? { reaplicacion } : {}),
       comprobante: input.voucherArchivoId
         ? "reemplazado"
         : quitar
@@ -478,6 +665,8 @@ export async function editarPago(
           : "sin cambios",
     },
   });
+
+  return reaplicacion;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { editarPagoAction } from "../../actions";
 import { ACCEPT_COMPROBANTE } from "@/lib/comprobantes";
+import { unidadIdsDePropietario } from "@/modules/finanzas/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +28,37 @@ export default async function EditarPagoPage({
 
   const pago = await prisma.pago.findUnique({
     where: { id },
-    include: { propietario: { select: { nombre: true } } },
+    include: {
+      propietario: { select: { nombre: true } },
+      aplicaciones: { select: { cargoId: true, montoAplicado: true } },
+    },
   });
   if (!pago) notFound();
 
-  const montoEditable = pago.estado === "POR_VALIDAR";
+  const montoEditable = pago.estado === "POR_VALIDAR" || pago.estado === "CONFIRMADO";
+  const confirmado = pago.estado === "CONFIRMADO";
+  const aplicadoPorCargo = new Map(
+    pago.aplicaciones.map((a) => [a.cargoId, Number(a.montoAplicado)]),
+  );
+
+  // Cuotas elegibles: las que este pago ya cubre y las que aún tienen saldo.
+  const unidadIds = confirmado ? await unidadIdsDePropietario(pago.propietarioId) : [];
+  const cuotas = confirmado
+    ? await prisma.cargo.findMany({
+        where: {
+          estado: { not: "ANULADO" },
+          OR: [
+            { id: { in: [...aplicadoPorCargo.keys()] } },
+            { unidadId: { in: unidadIds }, estado: { in: ["PENDIENTE", "PARCIAL"] } },
+          ],
+        },
+        include: {
+          unidad: { select: { codigo: true } },
+          aplicaciones: { select: { montoAplicado: true } },
+        },
+        orderBy: [{ fechaVencimiento: "asc" }, { createdAt: "asc" }],
+      })
+    : [];
   const fechaStr = pago.fechaPago.toISOString().slice(0, 10);
 
   return (
@@ -72,14 +99,56 @@ export default async function EditarPagoPage({
                 <div className={`${inputClass} bg-slate-50 text-slate-500`}>
                   {formatPEN(pago.monto)}
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
-                  Este pago ya está confirmado y aplicado a uno o más cargos. Para
-                  corregir el monto, anúlalo desde la lista de pagos y registra uno
-                  nuevo.
-                </p>
               </>
             )}
           </div>
+
+          {confirmado && (
+            <div>
+              <input type="hidden" name="editaCuotas" value="1" />
+              <p className={labelClass}>Cuotas que cubre este pago</p>
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200">
+                {cuotas.map((c) => {
+                  const propio = aplicadoPorCargo.get(c.id) ?? 0;
+                  const deOtros =
+                    c.aplicaciones.reduce((a, x) => a + Number(x.montoAplicado), 0) - propio;
+                  const disponible = Number(c.monto) - deOtros;
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-0 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        name="cargoIds"
+                        value={c.id}
+                        defaultChecked={aplicadoPorCargo.has(c.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      <span className="flex-1 truncate">
+                        {c.descripcion}
+                        <span className="ml-1 text-xs text-slate-400">{c.unidad.codigo}</span>
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-slate-500">
+                        {propio > 0 && `cubre ${formatPEN(propio)} · `}
+                        admite {formatPEN(disponible)}
+                      </span>
+                    </label>
+                  );
+                })}
+                {cuotas.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-slate-400">
+                    El propietario no tiene cuotas con saldo.
+                  </p>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Al guardar con otro monto u otras cuotas, el pago se vuelve a
+                aplicar: cubre las marcadas de la más antigua a la más nueva y lo
+                que sobre queda como saldo a favor.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

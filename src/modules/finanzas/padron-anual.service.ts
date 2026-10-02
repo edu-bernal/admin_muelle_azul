@@ -10,7 +10,13 @@ import { Prisma } from "@prisma/client";
  * El mes de cada abono es el del CARGO que cubre, no el de la fecha en que
  * entró el dinero: así la fila cuadra con lo que se debía mes a mes, que es
  * como se lee la planilla.
+ *
+ * Solo las cuotas del concepto EXTRA van a la columna de extraordinarias.
+ * Todas las demás que tienen mes (la cuota de mantenimiento y sus variantes,
+ * como la "Cuota Mantto. Administrador" que se asigna al editar una cuota)
+ * se suman en su mes: siguen siendo la cuota mensual de esa propiedad.
  */
+const CONCEPTO_EXTRAORDINARIA = "EXTRA";
 export interface FilaPadronAnual {
   numero: number;
   sector: string;
@@ -105,10 +111,10 @@ export async function padronAnual(anio: number): Promise<PadronAnual> {
   for (const a of aplicaciones) {
     const acc = porUnidad.get(a.cargo.unidadId) ?? vacio();
     const monto = new Prisma.Decimal(a.montoAplicado).toNumber();
-    if (a.cargo.conceptoCobro.codigo === "MANT") {
-      acc.meses[a.cargo.periodo!.getUTCMonth()] += monto;
-    } else {
+    if (a.cargo.conceptoCobro.codigo === CONCEPTO_EXTRAORDINARIA) {
       acc.extra += monto;
+    } else {
+      acc.meses[a.cargo.periodo!.getUTCMonth()] += monto;
     }
     porUnidad.set(a.cargo.unidadId, acc);
   }

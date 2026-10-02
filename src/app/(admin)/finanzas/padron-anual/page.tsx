@@ -176,7 +176,9 @@ export default async function PadronAnualPage({
       <p className="mt-3 max-w-4xl text-xs text-slate-400">
         Cada importe es lo aplicado a la cuota de ese mes, no la fecha en que
         entró el dinero: así la fila cuadra con lo que se debía mes a mes. La
-        columna Extra. suma los abonos a cuotas extraordinarias del año. Lo
+        columna Extra. suma los abonos a cuotas extraordinarias del año; las
+        cuotas mensuales con otro concepto (por ejemplo, la del administrador)
+        se cuentan en su mes. Lo
         pagado de más queda como saldo a favor del propietario y no aparece
         aquí, porque no cubre ninguna cuota del año. Las cocheras no se listan:
         no se les emite cuota. El archivo Excel trae además manzana, lote y el

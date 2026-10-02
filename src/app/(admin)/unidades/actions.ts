@@ -7,7 +7,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { editarCargo } from "@/modules/finanzas/cargos.service";
+import { editarCargo, mensajeCuotaEditada } from "@/modules/finanzas/cargos.service";
 
 const unidadSchema = z.object({
   sectorId: z.string().min(1, "Sector requerido"),
@@ -286,13 +286,13 @@ export async function editarCargoUnidad(formData: FormData) {
 
   // El redirect de éxito va fuera del try: redirect() señaliza lanzando una
   // excepción, y dentro del try el catch la tomaría por un fallo.
-  let estado: string;
+  let res: Awaited<ReturnType<typeof editarCargo>>;
   try {
-    ({ estado } = await editarCargo(
+    res = await editarCargo(
       cargoId,
       { monto, conceptoCobroId, descripcion },
       user.userId,
-    ));
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "No se pudo editar la cuota";
     redirect(`/unidades/${unidadId}?error=${encodeURIComponent(msg)}`);
@@ -300,6 +300,6 @@ export async function editarCargoUnidad(formData: FormData) {
 
   revalidatePath(`/unidades/${unidadId}`);
   redirect(
-    `/unidades/${unidadId}?ok=${encodeURIComponent(`Cuota actualizada (${estado})`)}`,
+    `/unidades/${unidadId}?ok=${encodeURIComponent(mensajeCuotaEditada(res))}`,
   );
 }

@@ -436,9 +436,10 @@ export default async function UnidadDetallePage({
               )}
             </Table>
             <p className="mt-3 text-xs text-slate-400">
-              Cambiar el monto de una cuota altera la deuda del propietario. No
-              se puede bajar por debajo de lo que ya se le aplicó en pagos: para
-              eso hay que anular o eliminar antes el pago.
+              Cambiar el monto de una cuota altera la deuda del propietario. Si
+              se baja por debajo de lo ya pagado, lo pagado de más pasa a saldo a
+              favor de quien pagó. Para cuotas ya pagadas, usa Editar en el
+              estado de cuenta del propietario.
             </p>
           </Card>
 

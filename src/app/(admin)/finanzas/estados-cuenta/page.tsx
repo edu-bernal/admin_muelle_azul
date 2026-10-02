@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { currentUser, can } from "@/lib/auth";
 import { estadoCuentaPropietario } from "@/modules/finanzas/estado-cuenta.service";
 import {
   PageHeader,
@@ -15,13 +16,20 @@ export const dynamic = "force-dynamic";
 export default async function EstadosCuentaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ propietarioId?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{
+    propietarioId?: string;
+    desde?: string;
+    hasta?: string;
+    ok?: string;
+    error?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const hoy = new Date().toISOString().slice(0, 10);
   // Por defecto, el año en curso: es el rango que se pide en ventanilla.
   const desde = sp.desde || `${hoy.slice(0, 4)}-01-01`;
   const hasta = sp.hasta || hoy;
+  const puedeEditar = can(await currentUser(), "finanzas.emitir");
   const propietariosRaw = await prisma.propietario.findMany({
     where: { activo: true, titularidades: { some: { fechaFin: null } } },
     orderBy: { nombre: "asc" },
@@ -105,7 +113,24 @@ export default async function EstadosCuentaPage({
               Descargar PDF
             </a>
           </div>
-          <EstadoCuentaView ec={ec} />
+          {sp.ok && (
+            <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              ✅ {sp.ok}
+            </div>
+          )}
+          {sp.error && (
+            <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+              {sp.error}
+            </div>
+          )}
+          <EstadoCuentaView
+            ec={ec}
+            editarVolver={
+              puedeEditar
+                ? `/finanzas/estados-cuenta?propietarioId=${sp.propietarioId}&desde=${desde}&hasta=${hasta}`
+                : undefined
+            }
+          />
         </>
       )}
     </>
